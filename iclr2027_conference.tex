@@ -1,0 +1,986 @@
+\documentclass{article}
+\usepackage{iclr2027_conference,times}
+
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm}
+\usepackage{booktabs,array,tabularx,multirow}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{graphicx}
+\usepackage{thmtools}
+\usepackage{thm-restate}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage{hyperref}
+\usepackage[nameinlink,capitalise,noabbrev]{cleveref}
+\usepackage{url}
+
+% -----------------------------------------------------------------------------
+% Theorem environments
+% -----------------------------------------------------------------------------
+\declaretheorem[numberwithin=section,name=Theorem]{theorem}
+\declaretheorem[sibling=theorem,name=Proposition]{proposition}
+\declaretheorem[sibling=theorem,name=Lemma]{lemma}
+\declaretheorem[sibling=theorem,name=Corollary]{corollary}
+\declaretheorem[sibling=theorem,name=Definition]{definition}
+\declaretheorem[sibling=theorem,name=Assumption]{assumption}
+\declaretheorem[sibling=theorem,name=Example]{example}
+\declaretheorem[style=remark,sibling=theorem,name=Remark]{remark}
+
+\crefname{theorem}{Theorem}{Theorems}
+\Crefname{theorem}{Theorem}{Theorems}
+\crefname{proposition}{Proposition}{Propositions}
+\Crefname{proposition}{Proposition}{Propositions}
+\crefname{lemma}{Lemma}{Lemmas}
+\Crefname{lemma}{Lemma}{Lemmas}
+\crefname{corollary}{Corollary}{Corollaries}
+\Crefname{corollary}{Corollary}{Corollaries}
+\crefname{definition}{Definition}{Definitions}
+\Crefname{definition}{Definition}{Definitions}
+\crefname{assumption}{Assumption}{Assumptions}
+\Crefname{assumption}{Assumption}{Assumptions}
+\crefname{equation}{Equation}{Equations}
+\Crefname{equation}{Equation}{Equations}
+\crefname{algorithm}{Algorithm}{Algorithms}
+\Crefname{algorithm}{Algorithm}{Algorithms}
+\crefname{table}{Table}{Tables}
+\Crefname{table}{Table}{Tables}
+\crefname{figure}{Figure}{Figures}
+\Crefname{figure}{Figure}{Figures}
+\crefname{section}{Section}{Sections}
+\Crefname{section}{Section}{Sections}
+
+% -----------------------------------------------------------------------------
+% Notation
+% -----------------------------------------------------------------------------
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\KL}{\mathrm{KL}}
+\newcommand{\TV}{\mathrm{TV}}
+\newcommand{\1}{\mathbf{1}}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert_2}
+\newcommand{\abs}[1]{\left\lvert #1 \right\rvert}
+\newcommand{\pos}[1]{\left(#1\right)_{+}}
+\newcommand{\Lset}{\mathcal{L}}
+\newcommand{\Qclass}{\mathcal{Q}}
+\newcommand{\Pclass}{\mathfrak{P}}
+\newcommand{\Mclass}{\mathcal{M}}
+\newcommand{\Xclass}{\mathfrak{X}}
+\newcommand{\Rclass}{\mathfrak{R}}
+\newcommand{\URisk}{\mathfrak{R}}
+\newcommand{\PhiBar}{\overline\Phi}
+\newcommand{\eps}{\varepsilon}
+\newcommand{\mstar}{m^{\star}}
+\newcommand{\mstarmax}{m^{\star\star}}
+\newcommand{\argminop}{\operatorname*{arg\,min}}
+\newcommand{\sgn}{\operatorname{sign}}
+
+\title{Uncertainty-Set Geometry Determines the Algorithm:\\
+A Uniform-Risk Account of Training--Inference Mismatch in LLM Reinforcement Learning}
+
+\author{Anonymous Authors}
+
+% \iclrfinalcopy
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Modern reinforcement learning for large language models uses one engine to generate rollouts and another to compute gradients. Even at synchronized parameters, the two engines can assign different probabilities to the same token; in mixture-of-experts models, a router flip can also assign the gradient to experts that did not generate the token. Existing remedies apply different operations to the resulting engine ratio: truncated importance sampling caps it, whereas IcePop zeroes ratios outside a fixed band. We formulate two observation-law classes and ask which weight map minimizes a bias constant uniformly over each class. Following the closed-form characterization and matching hard-instance organization used in distributionally robust offline RL, we prove two correspondence theorems. For bounded log-density ratios, capping is calibrated, is the unique projection under a fixed influence budget for every admissible ratio law, and loses its uniform guarantee once an essential escape component leaves every finite band. For a localized corrupted channel, unrestricted support makes capping and gating statistically nonidentifiable, whereas localization yields an exact uniform-risk solution: the identity outside the escape set and a clean-tail-quantile cap inside it. The IcePop gate is the sharp zero-cap phase, selected if and only if positive clean escape mass is no larger than contamination odds. The upper guarantees and the attaining members match exactly, so the constants cannot be improved within the stated classes.
+\end{abstract}
+
+% =============================================================================
+\section{Introduction}
+\label{sec:introduction}
+
+Modern language-model RL is implemented by two software stacks. An inference engine such as vLLM or SGLang generates rollouts, while a training engine such as Megatron or FSDP recomputes log probabilities and backpropagates gradients. Different kernels, parallelism layouts, reduction orders, precisions, and decode paths make these stacks numerically distinct even when they load the same parameters \citep{yao2025tis,he2025nondeterminism,qi2025fp16}. The discrepancy is especially consequential in mixture-of-experts models. A small numerical perturbation can change a discrete top-$k$ routing decision, so the training path may traverse experts that did not generate the sampled token \citep{ling2025ring,ma2025r3}. The mismatch can then affect both the token probability and the conditional mean of the gradient payload.
+
+Practice has produced two different repairs. Truncated importance sampling (TIS) caps the engine ratio \citep{ionides2008truncated,yao2025tis}; IcePop zeroes every ratio outside a fixed interval \citep{ling2025ring}. Both require choices outside the underlying RL objective. This leaves three questions unanswered: why should a large ratio be capped rather than removed, when should it instead be removed, and what uncertainty assumptions make either operation uniformly valid?
+
+\paragraph{Our view.}
+An uncertainty class is not merely a regularizer around a fixed algorithm. Together with a decision criterion, it selects the token-level operator and determines the boundary of its guarantee. A bounded-ratio class treats every payload as valid but potentially influential, leading to a projection onto an influence budget. A localized corrupted channel allows a small fraction of payload means to be unknown without imposing a zero-mean condition, leading to a clean-fidelity versus corrupted-exposure tradeoff. The cap and the gate are therefore solutions to different statistical problems rather than interchangeable heuristics.
+
+Our contributions are threefold.
+\begin{itemize}
+    \item We formalize geometry--operator correspondence through two requirements: an operator must minimize a bias constant uniformly over a stated observation-law class, and a matching hard instance must characterize the boundary beyond which its guarantee fails. This follows the closed-form-plus-lower-bound proof organization of \citet{shi2023distributionally}, while changing the statistical object from a robust Bellman functional to a ratio-weighted gradient estimator.
+    \item We prove a complete density-band correspondence. A cap covering the band is exactly unbiased; under a fixed influence budget it is the unique pointwise projection for every admissible ratio law; and an essential escape component places the observation law outside every finite band and creates a bias floor of at least $\eps B e^{\sigma}$ for every band-faithful cap.
+    \item We prove a complete localized-corruption correspondence. Without localization, the cap-versus-gate choice is not identifiable from the class. With localization, the uniform-risk optimal rule is the identity outside the escape set and $\min\{k,m^{\star}\}$ inside it. Hard zeroing is optimal if and only if positive clean escape mass is at most $\eps/(1-\eps)$, and an attaining-member construction matches the uniform constant for every measurable operator.
+\end{itemize}
+
+\paragraph{Notation.}
+The differentiable training policy is $p_{\theta}$ and the rollout policy is $q_{\theta}$. At synchronized parameters $\theta_0$, the engine ratio is $K=p_{\theta_0}/q_{\theta_0}$, with $k$ denoting a realized value. The full importance ratio factors as $w=rK$, where $r=p_{\theta}/p_{\theta_0}$ is parameter-space drift. We write $P_K$ for a clean ratio law, $P_0$ for the clean law in the localized model, $\Lset$ for a reachable escape set, and $\eps$ for the corrupted-channel mass. The payload class is $\Xclass_B=\{x:\norm{x(k)}\le B\}$, the clean tail is $T(m)=P_0(K>m,K\in\Lset)$, and $\pi_{\Lset}=P_0(K\in\Lset,K>0)$.
+
+% =============================================================================
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Training--inference mismatch.}
+PPO and GRPO define the policy-optimization layer used in current language-model RL \citep{schulman2017ppo,shao2024deepseekmath}, while GSPO moves the optimization unit toward sequence-level ratios \citep{zheng2025gspo}. TIS identifies off-policy behavior induced by hybrid rollout and training backends and caps the resulting ratio \citep{yao2025tis}. Ring-1T introduces IcePop and documents compounding mismatch together with the practical sensitivity of fixed masking bands \citep{ling2025ring}. Complementary interventions act closer to the source: uniform FP16 reduces numerical mismatch \citep{qi2025fp16}, Rollout Routing Replay reuses inference routes during training \citep{ma2025r3}, and DRPO replaces hard divergence masking with smooth regularization \citep{yao2026drpo}. These works motivate useful operators and systems controls; our focus is the statistical class under which a ratio operator has a uniform guarantee.
+
+\paragraph{Robust RL and regularized robust MDPs.}
+Value clipping can be the exact image of a robust Bellman problem under total-variation geometry \citep{liu2026clipped}. Related work studies equivalences between robustness and regularization, soft robust objectives, and divergence-structured robust MDPs \citep{derman2021twice,yang2023rmdp,zhang2024soft,tang2025f}. \citet{shi2023distributionally} organize KL-robust offline RL around an explicit nominal functional, an empirical construction, and a matching information-theoretic hard instance. We use the first and last elements of that organization: first derive the exact population operator, then exhibit class members that attain the corresponding uniform constant.
+
+\paragraph{Robust statistics.}
+Huber's contamination model and robust likelihood-ratio tests formalize small fractions of arbitrary deviation \citep{huber1964robust,huber1965robust,huber1973minimax}. Truncated importance sampling controls heavy-tailed valid weights \citep{ionides2008truncated}, and CVaR admits a density-bounded dual representation \citep{rockafellar2000cvar}. Classical robust testing distinguishes censoring from trimming, but it does not model a gradient payload whose computational path can be wrong. We encode this issue as an unknown corrupted conditional payload mean, with no zero-mean assumption.
+
+
+% ============================================================
+% Sections 3-4: Preliminaries and Theoretical Framework
+% Environments assumed: assumption, definition, lemma, theorem,
+%   corollary, remark  (via amsthm)
+% Macros assumed: \E (\mathbb E), \R (\mathbb R); otherwise standard.
+% Proofs deferred to Appendix~\ref{app:proof}.
+% ============================================================
+
+\section{Preliminaries}
+\label{sec:prelim}
+
+\subsection{Setup and notation}
+
+Let $x$ denote a prompt and $\tau=(y_1,\ldots,y_T)$ a trajectory, with prefix
+$h_t=(x,y_{<t})$, so that any autoregressive policy factorizes as
+$\pi(\tau\mid x)=\prod_{t=1}^{T}\pi(y_t\mid h_t)$. Modern RL post-training
+pipelines maintain \emph{two numerical realizations} of the rollout policy: an
+inference engine optimized for throughput, which generates the data, and a
+training engine, which scores it and carries gradients. We write
+$\pi^{\mathrm{inf}}_{\theta}$ and $\pi^{\mathrm{trn}}_{\theta}$ for the two
+realizations of the same parameter vector $\theta$, and
+$\theta_{\mathrm{old}}$ for the parameter snapshot at rollout time.
+
+Three per-token scalars organize everything that follows. For the sampled
+token $y_t$,
+\begin{align}
+r_t(\theta)
+&:=
+\frac{\pi^{\mathrm{trn}}_{\theta}(y_t\mid h_t)}
+     {\pi^{\mathrm{trn}}_{\theta_{\mathrm{old}}}(y_t\mid h_t)},
+\label{eq:def_r}
+\\[2pt]
+k_t
+&:=
+\frac{\pi^{\mathrm{trn}}_{\theta_{\mathrm{old}}}(y_t\mid h_t)}
+     {\pi^{\mathrm{inf}}_{\theta_{\mathrm{old}}}(y_t\mid h_t)},
+\label{eq:def_k}
+\\[2pt]
+p_t
+&:=
+\pi^{\mathrm{trn}}_{\theta_{\mathrm{old}}}(y_t\mid h_t).
+\label{eq:def_p}
+\end{align}
+The PPO ratio $r_t(\theta)$ compares two parameter vectors under the
+\emph{same} engine; it is a differentiable function of $\theta$, equal to one
+at the start of each optimization phase. The mismatch ratio $k_t$ compares the
+\emph{same} parameter vector under two engines; it involves no $\theta$, is
+fixed once the rollout is scored, and enters the computation graph as a
+constant. The confidence $p_t$ is the training-side probability of the token
+that was actually sampled.
+
+\subsection{The full correction and its factorization}
+
+The optimizer targets gradients under the current policy as realized by the
+training engine, while samples are drawn from
+$\pi^{\mathrm{inf}}_{\theta_{\mathrm{old}}}$. The exact importance weight
+factorizes as
+\begin{equation}
+k^{\mathrm{full}}_t(\theta)
+:=
+\frac{\pi^{\mathrm{trn}}_{\theta}(y_t\mid h_t)}
+     {\pi^{\mathrm{inf}}_{\theta_{\mathrm{old}}}(y_t\mid h_t)}
+=
+r_t(\theta)\cdot k_t .
+\label{eq:telescoping}
+\end{equation}
+Identity~\eqref{eq:telescoping} induces a division of labor that all methods
+compared in this paper share. The parameter-drift factor $r_t(\theta)$ is
+consumed by the PPO surrogate,
+\begin{equation}
+\ell_t(\theta)
+=
+\min\!\Big(
+r_t(\theta)\,\hat A_t,\;
+\operatorname{clip}\big(r_t(\theta),\,1-\varepsilon_{\mathrm{lo}},\,1+\varepsilon_{\mathrm{hi}}\big)\,\hat A_t
+\Big),
+\label{eq:ppo_surrogate}
+\end{equation}
+where it serves as a trust-region device rather than as an importance weight.
+The engine-mismatch factor $k_t$ is the object this paper studies: it is not
+differentiable, not handled by the clip, and---because the inference engine is
+never exposed to the current $\theta$---cannot be folded into
+\eqref{eq:ppo_surrogate} without destroying the trust-region semantics.
+Correcting it is a separate design problem.
+
+\subsection{Ratio operators}
+
+\begin{definition}[Ratio operator]
+\label{def:operator}
+A \emph{ratio operator} is a measurable map
+$M:\R_{+}\times[0,1]\to\R_{+}$ applied tokenwise to the corrected loss
+\begin{equation}
+\mathcal L_{M}(\theta)
+=
+\frac{1}{T}\sum_{t=1}^{T}
+M(k_t,p_t)\;\ell_t(\theta).
+\label{eq:corrected_loss}
+\end{equation}
+The weight $M(k_t,p_t)$ is a constant with respect to $\theta$ and carries no
+gradient. The choice $M(k,p)=k$ recovers exact per-token importance
+correction; $M\equiv1$ recovers the uncorrected loss.
+\end{definition}
+
+All methods we compare---constant truncation, masking schemes, and the
+operator proposed here---are instances of Definition~\ref{def:operator}
+acting on the \emph{same} pair $(k_t,p_t)$; they differ only in the shape of
+$M$. We restrict attention to operators that may attenuate but never amplify:
+
+\begin{definition}[Shrinkage class]
+\label{def:shrinkage}
+$\displaystyle
+\mathcal M_{\downarrow}
+:=
+\bigl\{\,M:\ 0<M(k,p)\le k\ \ \text{for all }(k,p)\,\bigr\}$,
+equivalently $\log M(k_t,p_t)\le\log k_t$.
+\end{definition}
+
+Two structural facts motivate the restriction, both independent of any
+distributional model. First, the support bound
+$\pi^{\mathrm{inf}}\le1$ implies $k_t\ge p_t$: small ratios occur only at
+low-confidence tokens, where they are the correct weights of genuinely
+off-policy actions, and where the payload is already attenuated by the score
+norm (Lemma~\ref{lem:score_norm}). Second, our dose--response ablation
+(Section~\ref{sec:experiments}) shows that any amount of lower-side lifting
+degrades held-out accuracy monotonically, with the symmetric two-sided variant
+falling below the untrained baseline.
+
+The only structural property of $k_t$ used in the sequel is that it is
+calibrated in conditional mean.
+
+\begin{lemma}[Per-step identity]
+\label{lem:identity}
+For every prefix $h_t$,
+\begin{equation}
+\E_{y_t\sim\pi^{\mathrm{inf}}_{\theta_{\mathrm{old}}}(\cdot\mid h_t)}
+\bigl[k_t\,\big|\,h_t\bigr]=1 .
+\label{eq:identity}
+\end{equation}
+\end{lemma}
+
+The proof is a one-line change of measure and requires no assumption beyond
+support inclusion; we verify \eqref{eq:identity} empirically on both
+architectures as a pipeline self-check (Section~\ref{sec:experiments}).
+Notably, \eqref{eq:identity} holds regardless of any contamination of $k_t$,
+so mean calibration cannot by itself distinguish a clean mismatch from a
+corrupted one; this observation motivates the finer decomposition of the next
+section.
+
+% ============================================================
+
+\section{Theoretical Framework}
+\label{sec:theory}
+
+This section develops the estimation theory behind the operator. The
+organizing principle is a distinction between two components of the observed
+mismatch that differ not in magnitude but in \emph{epistemic status}: one
+component follows a measurable law and is therefore amenable to averaging;
+the other is identified only at the level of sets---sign, sparsity,
+envelope---and the only well-posed operation against it is a worst-case one.
+The resulting objective is a robust mean-squared error, and its minimizer over
+the shrinkage class is precisely the deployed operator.
+
+\subsection{Two-channel structure of the mismatch}
+\label{sec:two_channel}
+
+Our measurements (Section~\ref{sec:experiments}) establish two facts about
+$\log k_t$. First, the bulk obeys a \emph{scale law}: the conditional width is
+linear in the training-side uncertainty,
+\begin{equation}
+\operatorname{scale}\bigl(\log k_t\,\big|\,p_t\bigr)
+=
+c\,(1-p_t),
+\label{eq:scale_law}
+\end{equation}
+measured across six decades with $R^2\approx0.999$, and the standardized
+deviation collapses to a single pivotal law across confidence bins. Second,
+the scale law is \emph{violated} by a sparse set of tokens whose deviations do
+not shrink with $1-p_t$: expert-routing discontinuities, whose magnitude is
+set by logit gaps rather than by the local noise scale; the finite resolution
+of stored log-probabilities; and, in asynchronous deployments, version
+displacement between the scoring and generation snapshots, measured at a
+median magnitude of $0.12$ that is constant across confidence bins.
+
+These facts fix the model. Write $\varphi_t:=1-p_t$ for now (the
+finite-precision floor is introduced in Section~\ref{sec:deployed}).
+
+\begin{assumption}[Scale channel]
+\label{asm:scale}
+On the scale component,
+$\log k^{(0)}_t=c\,\varphi_t\,Z_t$ with $Z_t\mid p_t\sim F_Z$ independent of
+$p_t$, $\E[Z_t]=0$, $\E[Z_t^2]<\infty$, $\E[(Z_t)_+]>0$, and
+$\E[(Z_t)_-]<\infty$. The upper tail of $F_Z$ is generalized Pareto with
+shape $\xi_+\in(0,1)$.
+\end{assumption}
+
+\begin{assumption}[Residual channel]
+\label{asm:residual}
+The observed mismatch is
+\begin{equation}
+\log k_t
+=
+c\,\varphi_t\,Z_t
++
+\delta_t\,B_t,
+\label{eq:two_channel}
+\end{equation}
+where $\delta_t\in\{0,1\}$ with $\Pr(\delta_t=1)=\alpha\le\epsilon$ and
+$\delta_t\perp(Z_t,\varphi_t,\ell_t')$, and, conditionally on $\delta_t=1$,
+the magnitude satisfies $0\le B_t\le B_{\max}$ with $B_{\max}$ independent of
+$\varphi_t$. The magnitude $B_t$ may depend measurably on $Z_t$; independence
+is assumed for the indicator only.
+\end{assumption}
+
+Assumption~\ref{asm:residual} deliberately refrains from modeling the law of
+$B_t$. Its three set-level clauses are each measured: sparsity from the
+concentration of the standardized distribution outside a thin tail; the
+non-scaling envelope from the constancy of residual magnitudes across
+confidence bins; one-sidedness of the \emph{threat} from the support bound of
+Section~\ref{sec:prelim} together with the dose--response ablation, which
+jointly confine the harmful direction to the upper side. The per-token value
+of $B_t$, by contrast, is unavailable in principle at operator-application
+time, and unstable across serving configurations; we therefore treat it as an
+adversarial quantity within its measured envelope, in the tradition of
+contamination-robust statistics.
+
+The single structural fact driving all results is the
+\emph{non-commensurability} of the two channels: in standardized units the
+residual displacement is
+\begin{equation}
+\beta(\varphi)
+:=
+\frac{B_{\max}}{c\,\varphi}
+\;\xrightarrow[\varphi\to0]{}\;\infty,
+\label{eq:beta}
+\end{equation}
+so the same physical displacement that hides within $1.5$ standard deviations
+at $p=0.5$ becomes a $10^{2}$-standard-deviation outlier at $p=0.995$.
+Standardization is not a cosmetic change of coordinates; it is the mechanism
+that separates the channels.
+
+\subsection{The robust estimation objective}
+\label{sec:objective}
+
+Let $\ell_t'=\hat A_t\nabla_\theta\log\pi_\theta(y_t\mid h_t)$ denote the
+per-token payload and
+$G_0=\E\bigl[e^{c\varphi_tZ_t}\,\ell_t'\bigr]$ the gradient induced by the
+scale channel alone---the estimand: contamination is to be removed, not
+reproduced. For $M\in\mathcal M_{\downarrow}$, write
+$\widehat G_M=n^{-1}\sum_{i}M(k_i,p_i)\ell_i'$. A standard bias--variance
+decomposition bounds the mean-squared error by
+$\|\E[M\ell']-G_0\|^2+n^{-1}\E[M^2\|\ell'\|^2]$, and we define the
+\emph{robust risk} by taking the worst case over the residual mechanism while
+averaging over the scale channel:
+\begin{equation}
+\boxed{\;
+\mathcal E(M)
+:=
+\sup_{\{B_t\}\in\,\mathcal U_{\epsilon,B_{\max}}}
+\left\{
+\Bigl\|\E\bigl[M\,\ell'\bigr]-G_0\Bigr\|^{2}
++
+\frac1n\,\E\bigl[M^{2}\|\ell'\|^{2}\bigr]
+\right\}.
+\;}
+\label{eq:robust_risk}
+\end{equation}
+The asymmetric treatment---expectation over $Z$, supremum over $B$---is not a
+preference but a consequence of the knowledge states established in
+Section~\ref{sec:two_channel}: a quantity with an identified law admits an
+expectation; a quantity known only through a set does not, and the worst case
+is the only well-posed alternative. Criteria that average over both channels
+are structurally blind to an $O(\epsilon)$ contamination, a point we return
+to in Remark~\ref{rem:eps0}.
+
+Two reductions make \eqref{eq:robust_risk} tractable; both are proved in
+Appendix~\ref{app:proof}. First, the score norm obeys
+\begin{equation}
+(1-p_t)\ \le\ \bigl\|\nabla_z\log\pi(y_t\mid h_t)\bigr\|_2\ \le\ \sqrt2\,(1-p_t)
+\label{eq:score_norm}
+\end{equation}
+(Lemma~\ref{lem:score_norm}), so within a confidence layer the payload norm
+factors out of both terms of \eqref{eq:robust_risk} and the layerwise problem
+is scalar. Second, parameterizing the operator in standardized coordinates,
+$\log M=c\varphi\,\psi(U)$ with $U=\log k/(c\varphi)$, the shrinkage
+constraint becomes $\psi(u)\le u$, and the layer risk depends on $\psi$ only
+through the truncation deficit $C(\psi)=\E[Z-\psi(Z)]$, the envelope
+$\Sigma(\psi)=\sup_u\psi(u)$, and the second moment $\E[\psi(Z)^2]$.
+
+\subsection{Main result}
+\label{sec:main_result}
+
+Write $H(\tau):=\E[(Z-\tau)_+]$ for the mean excess of the pivotal law and
+$\bar F_Z:=1-F_Z$.
+
+\begin{theorem}[High-confidence minimax operator]
+\label{thm:main}
+Let the confidence layer satisfy
+$\varphi<\varphi^{\ast}:=B_{\max}/(c\,\tau^{\ast})$, so that
+$\beta(\varphi)\gg\tau^\ast$ and the reachability defect of
+Lemma~\ref{lem:eta_reachability} vanishes. Then, to leading order in
+$\epsilon$ and $c\varphi$:
+\begin{enumerate}
+\item[\emph{(i)}] the inner supremum in \eqref{eq:robust_risk} is attained by
+displacing every contaminated token to the envelope of the operator, and the
+worst-case squared bias depends on $\psi$ only through
+$\max\{C^2,\ [\epsilon\Sigma-(1-\epsilon)C]^2\}$;
+\item[\emph{(ii)}] there is no loss in restricting to the clipping family
+$\psi_\tau(z)=\min(z,\tau)$, which attains the minimal feasible envelope at
+every truncation deficit, and which the strictly convex $O(1/n)$ second-moment
+term selects uniquely;
+\item[\emph{(iii)}] the minimizer of $\mathcal E$ over
+$\mathcal M_{\downarrow}$ is
+\begin{equation}
+\log M^{\star}(k_t,p_t)
+=
+\min\bigl(\log k_t,\ c\,\varphi_t\,\tau^{\ast}\bigr),
+\label{eq:optimal_operator}
+\end{equation}
+where $\tau^{\ast}$ is the unique root of the \emph{equalizer equation}
+\begin{equation}
+\frac{H(\tau^{\ast})}{\tau^{\ast}}
+=
+\frac{\epsilon}{2-\epsilon}\,;
+\label{eq:equalizer}
+\end{equation}
+\item[\emph{(iv)}] the finite-sample optimum satisfies
+$\tau^\star_n=\tau^\star+O(n^{-1})$.
+\end{enumerate}
+\end{theorem}
+
+The proof (Appendix~\ref{app:proof}) proceeds in three steps: a
+\emph{reachability collapse}---because $\beta(\varphi)\to\infty$, the
+adversary can transport any contaminated token to the operator's envelope, so
+the worst case is an explicit function of $\Sigma$ rather than of the full
+shape of $\psi$; a \emph{minimal-envelope argument}---among all shrinkage
+operators with a given truncation deficit, the clip uniquely minimizes the
+envelope; and an \emph{equalizer step}---the worst-case bias is the maximum of
+a decreasing branch (over-truncation of clean mass) and an increasing branch
+(residual leakage), so the optimum sits where the two branches cross, which is
+\eqref{eq:equalizer}. Pivotality of $F_Z$ is what makes $\tau^\ast$ a single
+number rather than a function of $p$.
+
+Equation~\eqref{eq:equalizer} admits a one-line reading: the operator
+deliberately truncates a $\Theta(\epsilon)$ quantile of \emph{clean} mass so
+that, at the worst case, the bias of over-truncation exactly balances the
+bias of contamination leakage. Clipping here is not variance control; it is
+bias equalization against an adversary whose displacement is, at high
+confidence, two orders of magnitude larger than the local noise scale.
+
+\begin{corollary}[Compilation of the band]
+\label{cor:compile}
+Under the generalized Pareto tail of Assumption~\ref{asm:scale},
+$H(\tau)\sim\frac{\xi_+}{1-\xi_+}\,\tau\,\bar F_Z(\tau)$, and
+\eqref{eq:equalizer} compiles to
+\begin{equation}
+\bar F_Z\bigl(\tau^{\ast}\bigr)
+\;\sim\;
+\frac{1-\xi_+}{\xi_+}\cdot\frac{\epsilon}{2-\epsilon},
+\qquad
+\lambda_+:=c\,\tau^{\ast}.
+\label{eq:compile}
+\end{equation}
+Every quantity on the right is measurable without a training run: $c$ and
+$\xi_+$ from the static mismatch measurement, $\epsilon$ from the residual
+exceedance rate. The compiled slope carries two falsifiable predictions:
+across serving configurations the same $\epsilon$ must move $\lambda_+$
+proportionally to $c$, and on a single configuration the empirical exceedance
+$\Pr(Z>\lambda_+/c)$ must agree with the independently estimated
+contamination rate to within its order of magnitude.
+\end{corollary}
+
+\subsection{The deployed operator}
+\label{sec:deployed}
+
+Assumption~\ref{asm:scale} is measured on the bulk of the confidence range.
+As $p_t\to1$ the observed width stops following $c(1-p_t)$ and saturates at
+the storage resolution of the log-probabilities---itself an instance of the
+residual channel. Below that point the unfloored band would be narrower than
+the numerical resolution and the operator would truncate quantization noise
+rather than mismatch. We therefore replace the scale variable by its floored
+version and deploy
+\begin{equation}
+\boxed{\;
+\log M^{\star}(k_t,p_t)
+=
+\min\Bigl(
+\log k_t,\ \
+\lambda_+\,\max\bigl(1-p_t,\ \varepsilon_0\bigr)
+\Bigr),
+\;}
+\label{eq:deployed}
+\end{equation}
+with $\varepsilon_0$ the measured quantization scale. By
+\eqref{eq:score_norm} the tokens the floor spares carry the smallest payload
+norms, so the relaxation is inexpensive as well as necessary; the ablation of
+Section~\ref{sec:experiments} shows that without the floor the band collapses
+at high confidence and training diverges.
+
+\subsection{Discussion}
+\label{sec:theory_discussion}
+
+\begin{remark}[The $\epsilon=0$ section]
+\label{rem:eps0}
+Setting $\epsilon=0$ removes the only confidence-differentiated force from
+\eqref{eq:robust_risk}; the optimum reverts to a constant cap whose threshold
+is set by the sample size, $\tau^\star_{\mathrm{var}}=(n-1)\,C(\tau^\star_{\mathrm{var}})$
+(Appendix~\ref{app:proof}). Our four independent null measurements---the flat
+$\Delta(\varphi)$ surface, the vanishing coupling channel, the deconfounded
+bare-sum slope, and the best-response fixed point converging to
+$\lambda^\star\approx0$---are therefore not failures of the theory but its
+predictions on the $\epsilon=0$ section: each of those probes evaluates a
+criterion in which the residual channel is absent by construction. The band
+is a strict consequence of $\epsilon>0$.
+\end{remark}
+
+\begin{remark}[Amplitude versus location]
+\label{rem:amplitude}
+The framework separates two events that every weight-magnitude criterion
+conflates. A large $|Z_t|$ is an \emph{amplitude} extreme of the clean
+law---a legitimate sample, expensive in variance, correctly handled by the
+loose sample-size-driven cap that average-case criteria already produce. A
+nonzero $B_t$ is a \emph{location} error: the weight is computed against the
+wrong measure. Average-case criteria are blind to it at $O(\epsilon)$; the
+robust risk sees it because the supremum is taken before the expectation. The
+band is aimed at the location error, and standardization is what makes that
+error visible.
+\end{remark}
+
+\begin{remark}[Engineering projection]
+\label{rem:projection}
+Theorem~\ref{thm:main} is stated for $\varphi<\varphi^{\ast}\approx
+B_{\max}/(c\tau^\ast)$. Outside this regime the two populations overlap
+($\beta\lesssim\tau^\ast$) and any debiasing depends sensitively on the exact
+residual envelope; we make no optimality claim there. The deployed operator
+applies the high-confidence slope globally, which is conservative and, in
+practice, immaterial: with slope $\lambda_+$ the band triggers only at
+$Z_t>\tau^\ast$, and at low confidence typical deviations are $O(1)$ standard
+units, so the operator is essentially inactive precisely where the theorem is
+silent.
+\end{remark}
+% =============================================================================
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{Diagnostics}
+\label{sec:experiments-diagnostics}
+
+\subsection{Setup}
+\label{sec:experiments-setup}
+
+\subsection{Main Results}
+\label{sec:experiments-results}
+
+\subsection{Analysis and Ablations}
+\label{sec:experiments-analysis}
+
+% =============================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+Token-level ratio operators encode assumptions about an observation-law class. The bounded-band theorem gives capping both a population origin and an exact validity boundary. The localized-corruption theorem shows that gating is not uniformly justified without localization; once the nuisance support is localized, the exact solution is an identity-plus-clean-tail cap, and IcePop is the sharp zero-cap phase selected by a necessary-and-sufficient mass condition. In both cases, attaining members match the upper guarantees exactly. The remaining empirical question is which class is supported by rollout logs in a given model and system regime.
+
+% Uncomment and complete the required disclosure before submission.
+% \subsection*{AI Use Statement}
+% Generative AI tools were used for language editing, structural organization,
+% and LaTeX drafting. The authors verified the mathematical arguments,
+% citations, and final claims and take responsibility for the manuscript.
+
+\bibliography{iclr2027_conference}
+\bibliographystyle{iclr2027_conference}
+
+\appendix
+
+% =============================================================================
+\section{Standing Assumptions and Notation}
+\label{app:standing}
+ 
+Throughout the appendix: $F=F_Z$ with density $f$, standardized so that $\E[Z]=0$;
+$\Fbar=1-F$; $H(\tau)=\E[(Z-\tau)_+]=\int_\tau^\infty \Fbar(z)\,dz$;
+$\beta=B_{\max}/(c\varphi)$. All statements are within a confidence layer (fixed $p$,
+hence fixed $\varphi$), to first order in $c\varphi$ (A4) and in $\epsilon$ (A5).
+ 
+\emph{(A1) Scale family and pivotality.} $\log k^{(0)}_t=c\varphi_tZ_t$ with
+$Z_t\sim F_Z$ independent of $p_t$ on the core; upper tail generalized Pareto with shape
+$\xi_+\in(0,1)$.
+ 
+\emph{(A2) Contamination.} As in Definition~\ref{def:threat}; in particular
+$(Z_t,\delta_t)\perp B_t$ and $\delta_t\perp(\varphi_t,\ell_t')$.
+ 
+\emph{(A3) Cross-layer aggregation.} Either layer gradient directions are mutually
+near-orthogonal, or the bias is aggregated by the norm-conservative bound
+$\|\sum_p b_p\|\le\sum_p\|b_p\|$; in both cases the layerwise optimum is optimal for the
+aggregate. The empirical check is the coherence matrix of
+Section~\ref{sec:experiments}.
+ 
+\emph{(A4) Linearization.} $e^{c\varphi u}=1+c\varphi u+O((c\varphi)^2)$; with
+$c\varphi\le0.156$ the neglected terms are $\le2.5\%$ relative.
+ 
+\emph{(A5) First order in $\epsilon$.} Terms $O(\epsilon^2)$ are dropped; validity is
+guarded by the sparsity and non-clustering measurements.
+ 
+\section{The Score-Norm Lemma}
+\label{app:score}
+ 
+\begin{lemma}
+\label{lem:score}
+Let $\pi=\pold(\cdot\mid h_t)$ and $p_t=\pi_{y_t}$. Then
+\begin{equation}
+(1-p_t)\ \le\ \big\|\nabla_z\log\pold(y_t\mid h_t)\big\|_2\ \le\ \sqrt2\,(1-p_t).
+\label{eq:score_bounds}
+\end{equation}
+\end{lemma}
+ 
+\begin{proof}
+Differentiating the log-softmax,
+\begin{align}
+\nabla_z\log\pi_{y_t}
+&\eqlab{a}
+e_{y_t}-\pi,
+\nonumber\\
+\big\|e_{y_t}-\pi\big\|_2^{2}
+&\eqlab{b}
+(1-p_t)^{2}+\sum_{j\ne y_t}\pi_j^{2},
+\nonumber\\
+\sum_{j\ne y_t}\pi_j^{2}
+&\lelab{c}
+\Big(\max_{j\ne y_t}\pi_j\Big)\sum_{j\ne y_t}\pi_j
+\;\le\;
+(1-p_t)^{2},
+\label{eq:score_proof}
+\end{align}
+where (a) is $\partial\log\pi_{y}/\partial z_j=\ind\{j=y\}-\pi_j$; (b) expands the squared
+norm; (c) bounds each term by the largest off-target probability, itself at most
+$\sum_{j\ne y_t}\pi_j=1-p_t$. The lower bound keeps only the first term of (b). Both ends
+are tight: the lower as off-target mass spreads over many tokens, the upper as it
+concentrates on one.
+\end{proof}
+ 
+For the unembedding block $z=Wh_t$, the identity
+$\nabla_W\log\pi_{y_t}=(e_{y_t}-\pi)h_t^{\top}$ gives
+$\|\nabla_W\log\pi_{y_t}\|_F=\|e_{y_t}-\pi\|_2\|h_t\|_2$, so \eqref{eq:score_bounds}
+transfers verbatim when $\|h_t\|\perp p_t$ (enforced by the final normalization layer and
+verified directly). For the full parameter vector only the upper bound survives, via
+$\|\nabla_\theta\log\pi\|\le\|J_\theta\|\,\|e_{y_t}-\pi\|$; using the error-vector norm as
+a per-example gradient-norm proxy is standard practice. Within a layer we therefore write
+$\|\ell_t'\|=\kappa_t(1-p_t)$ with $\kappa_t\perp p_t$ (checks C1--C2 of
+Section~\ref{sec:experiments}).
+ 
+\section{The Inner Supremum}
+\label{app:worst}
+ 
+\begin{lemma}[Worst-case contamination]
+\label{lem:worst}
+Fix a clip operator $\psi_\tau(u)=\min(u,\tau)$ in standardized coordinates. Both terms of
+\eqref{eq:robust_risk} are nondecreasing in each $B_t$; consequently the supremum over
+$\Umodel$ is attained at $B_t\equiv B_{\max}$.
+\end{lemma}
+ 
+\begin{proof}
+Write the contaminated token's output error against the clean target,
+\begin{align}
+D(B)
+&\eqlab{a}
+c\varphi\Big[\min\big(Z+\tfrac{B}{c\varphi},\ \tau\big)-Z\Big],
+\nonumber\\
+\frac{\partial}{\partial B}\,\min\big(Z+\tfrac{B}{c\varphi},\tau\big)
+&\eqlab{b}
+\tfrac{1}{c\varphi}\,\ind\big\{Z+\tfrac{B}{c\varphi}<\tau\big\}
+\;\ge\;0,
+\label{eq:worst_monotone}
+\end{align}
+where (a) subtracts the clean value $c\varphi Z$ from the clipped observed value; (b)
+differentiates the min. Hence $D(B)$ is nondecreasing in $B$, and since $D(0)=0$ while
+$B\ge0$, the bias contribution of every contaminated token is maximized at $B=B_{\max}$.
+The variance contribution is $\E[m^2\|\ell'\|^2]$ with
+$m=e^{c\varphi\min(Z+B/(c\varphi),\tau)}$, also nondecreasing in $B$ by
+\eqref{eq:worst_monotone}. A supremum of a sum of terms each maximized at the same point is
+attained there.
+\end{proof}
+ 
+Two remarks. First, the adversary controls magnitudes only; placement is Bernoulli and
+independent by A2, which is the measured non-clustering. Under a placement-adversarial
+model the analysis would change (the adversary would park contamination just below
+trigger); that model is excluded by measurement, not by convenience. Second, on
+$\{Z\le\tau-\beta\}$ the contamination passes through untouched with full residual
+$B_{\max}$; in the high-confidence regime $\beta\gg\tau$ this set has clean-law probability
+$F(\tau-\beta)\approx0$ (left tail), which is where the regime restriction of
+Theorem~\ref{thm:main} enters.
+ 
+\section{Proof of Theorem~\ref{thm:main}}
+\label{app:proof}
+ 
+By Lemma~\ref{lem:worst} set $B_t\equiv B_{\max}$, so every contaminated token observes
+$Z^{\mathrm{obs}}=Z+\beta$. All computations are per layer; the payload factor
+$\kappa^2(1-p)^2$ multiplies both bias$^2$ and variance and is dropped throughout (it is
+the exact cancellation that defeats plain MSE; here the $\varphi$-dependence survives
+inside the contamination geometry, not in the payload factor).
+ 
+\subsection{Bias decomposition}
+ 
+Write $D_t:=\log M-\log k^{(0)}$ in log-weight units (equal to the weight-scale error to
+$O((c\varphi)^2)$ by A4). Under the clip $\psi_\tau$:
+\begin{align}
+\text{clean }(\delta=0):\qquad
+D
+&\eqlab{a}
+c\varphi\big[\min(Z,\tau)-Z\big]
+=
+-\,c\varphi\,(Z-\tau)_+ ,
+\label{eq:D_clean}
+\\[2pt]
+\text{contaminated }(\delta=1):\qquad
+D
+&\eqlab{b}
+c\varphi\big[\min(Z+\beta,\tau)-Z\big]
+=
+\begin{cases}
++\,c\varphi\,\beta, & Z\le\tau-\beta,\\[2pt]
++\,c\varphi\,(\tau-Z), & \tau-\beta<Z\le\tau,\\[2pt]
+-\,c\varphi\,(Z-\tau), & Z>\tau,
+\end{cases}
+\label{eq:D_contam}
+\end{align}
+where (a) and (b) subtract the clean value $c\varphi Z$; the three cases are full
+pass-through, partial removal, and truncation beyond the clean value. Taking expectations
+and mixing with weights $(1-\epsilon,\epsilon)$,
+\begin{align}
+b(\tau)
+&\eqlab{a}
+(1-\epsilon)\big(-c\varphi H(\tau)\big)
++\epsilon\,c\varphi\Big[\beta F(\tau-\beta)
++\!\int_{\tau-\beta}^{\tau}\!(\tau-z)f(z)\,dz
+- H(\tau)\Big]
+\nonumber\\
+&\eqlab{b}
+c\varphi\Big[
+-\,H(\tau)
++\epsilon\Big(\beta F(\tau-\beta)+\!\int_{\tau-\beta}^{\tau}\!(\tau-z)f(z)\,dz\Big)
+\Big],
+\label{eq:bias_formula}
+\end{align}
+where (a) integrates \eqref{eq:D_clean}--\eqref{eq:D_contam} case by case; (b) collects
+$-(1-\epsilon)H-\epsilon H=-H$. The clean and contaminated contributions enter with
+opposite signs: over-truncation of clean mass can cancel the contamination residual, and
+the optimum will exploit exactly this.
+ 
+\subsection{Monotonicity and the unique root}
+ 
+Differentiate \eqref{eq:bias_formula} term by term:
+\begin{align}
+\frac{d}{d\tau}\big[-H(\tau)\big]
+&\eqlab{a}
+\Fbar(\tau),
+\nonumber\\
+\frac{d}{d\tau}\big[\beta F(\tau-\beta)\big]
+&\eqlab{b}
+\beta f(\tau-\beta),
+\nonumber\\
+\frac{d}{d\tau}\int_{\tau-\beta}^{\tau}(\tau-z)f(z)\,dz
+&\eqlab{c}
+\underbrace{(\tau-\tau)f(\tau)}_{=0}
+-\underbrace{\beta f(\tau-\beta)}_{\text{lower limit}}
++\int_{\tau-\beta}^{\tau}f(z)\,dz,
+\label{eq:leibniz}
+\end{align}
+where (a) is $H'=-\Fbar$; (b) is the chain rule; (c) is Leibniz's rule, whose lower-limit
+term cancels (b) \emph{exactly}. Hence
+\begin{equation}
+b'(\tau)
+=
+c\varphi\Big[\Fbar(\tau)+\epsilon\big(F(\tau)-F(\tau-\beta)\big)\Big]
+\;>\;0 ,
+\label{eq:bprime}
+\end{equation}
+so $b$ is strictly increasing. Its limits:
+\begin{align}
+b(0^{+})
+&\eqlab{a}
+c\varphi\big[-H(0)+O(\epsilon)\big]<0,
+\qquad
+b(\infty)
+\eqlab{b}
+c\varphi\,\epsilon\,\beta
+=\epsilon B_{\max}>0,
+\label{eq:blimits}
+\end{align}
+where (a) uses $H(0)=\E[Z_+]>0$ and, at high confidence, $F(-\beta)\approx0$ so the
+$\epsilon$-terms are $O(\epsilon\,\E[Z_-])$; (b) uses $H(\infty)=0$,
+$F(\tau-\beta)\to1$, and the vanishing of the window integral. Therefore $b$ has a unique
+zero $\tau_{\mathrm{unb}}\in(0,\infty)$: the \emph{debiasing point}, at which deliberate
+clean truncation cancels the contamination residual in expectation.
+ 
+\subsection{Second-order verification}
+ 
+The bias term of the risk is $b^2$. Its stationary points satisfy $b\,b'=0$; since
+$b'>0$ everywhere by \eqref{eq:bprime}, the only stationary point is
+$b(\tau_{\mathrm{unb}})=0$, and there
+\begin{equation}
+\frac{d^{2}}{d\tau^{2}}\,b^{2}
+=
+2\big(b'\big)^{2}+2\,b\,b''
+\eqlab{a}
+2\big(b'(\tau_{\mathrm{unb}})\big)^{2}
+>0,
+\label{eq:second_order}
+\end{equation}
+where (a) uses $b(\tau_{\mathrm{unb}})=0$. The debiasing point is the strict global
+minimum of the bias term; no other stationary branch exists.
+ 
+\subsection{High-confidence limit}
+ 
+Let $\beta\gg\tau$ over the relevant range (the regime $\varphi<\varphi^\ast$ of the
+theorem). Then $F(\tau-\beta)\approx0$ and the window integral extends to the whole left
+half:
+\begin{align}
+\int_{\tau-\beta}^{\tau}(\tau-z)f(z)\,dz
+&\eqlab{a}
+\int_{-\infty}^{\tau}(\tau-z)f(z)\,dz+O\big(F(\tau-\beta)\big)
+\nonumber\\
+&\eqlab{b}
+\tau F(\tau)-\E\big[Z\big]+\E\big[Z\ind\{Z>\tau\}\big]+O(\cdot)
+\nonumber\\
+&\eqlab{c}
+\tau+H(\tau)+O\big(F(\tau-\beta)\big),
+\label{eq:window}
+\end{align}
+where (a) extends the lower limit; (b) integrates by parts; (c) uses $\E[Z]=0$ and
+$\E[Z\ind\{Z>\tau\}]=H(\tau)+\tau\Fbar(\tau)$. Substituting into
+\eqref{eq:bias_formula},
+\begin{equation}
+b(\tau)
+=
+c\varphi\Big[-(1-\epsilon)\,H(\tau)+\epsilon\,\tau\Big]+O\big(\epsilon F(\tau-\beta)\big),
+\qquad
+b(\tau^{\ast})=0
+\iff
+\frac{H(\tau^{\ast})}{\tau^{\ast}}
+=\frac{\epsilon}{1-\epsilon},
+\label{eq:debias_proof}
+\end{equation}
+which is \eqref{eq:debias}. Under the generalized Pareto upper tail,
+$\Fbar(z)\asymp C z^{-1/\xi_+}$ and
+\begin{align}
+H(\tau)
+&\eqlab{a}
+\int_{\tau}^{\infty}\Fbar(z)\,dz
+\eqlab{b}
+\frac{\xi_+}{1-\xi_+}\,\tau\,\Fbar(\tau)\,\big(1+o(1)\big),
+\label{eq:gpd_H}
+\end{align}
+where (a) is Fubini and (b) integrates the power law. Substituting into
+\eqref{eq:debias_proof} gives \eqref{eq:gpd_root}. This proves parts (ii) and (iv).
+ 
+\subsection{Variance term}
+ 
+The variance contribution, after the common factor is removed and linearized by A4, is
+$V(\tau)=\tfrac{1}{n}\big[1+2c\varphi\,\E[\min(Z^{\mathrm{obs}},\tau)]\big]+O((c\varphi)^2)$,
+with $V'(\tau)>0$: loosening the cap always increases the second moment (and without a
+cap it diverges under $\xi_+>0$, which is the variance route to the necessity of
+truncation). The full first-order condition is $2b\,b'+V'=0$; at $\tau_{\mathrm{unb}}$
+the first term vanishes while $V'>0$, so the full optimum satisfies
+$\tau^{\star}_{\mathrm{full}}<\tau_{\mathrm{unb}}$ with
+$\tau_{\mathrm{unb}}-\tau^{\star}_{\mathrm{full}}=O(1/n)$ by the implicit function
+theorem applied at the strict minimum \eqref{eq:second_order}. This proves part (iii);
+part (i) is Lemma~\ref{lem:worst}.
+\hfill$\square$
+ 
+\subsection{Outside the regime}
+ 
+For $\varphi>\varphi^{\ast}$ the two populations overlap ($\beta\lesssim\tau$),
+$F(\tau-\beta)$ is no longer negligible, and the root of \eqref{eq:bias_formula} depends
+on $\beta$, hence on the exact value of $B_{\max}$: a $1.5\sigma$ contamination is
+statistically entangled with clean fluctuation, and any debiasing there is sensitive to
+misspecification of the contamination magnitude. We therefore make no optimality claim in
+this regime. The deployed single-slope operator is inactive there (typical deviations are
+$O(1)\sigma$ against a cap of $\tau^\ast\sigma$), so the projection costs nothing where
+the theory is silent; the dose--response ablation bounds the cost of the conservative
+choice empirically.
+ 
+\section{Why Weight-Error Criteria Do Not Produce the Band}
+\label{app:criteria}
+ 
+For contrast we record the optima of the two natural non-robust criteria under the same
+measured laws, both derived by the pointwise variation of Section~\ref{sec:seqmse}.
+ 
+\emph{Sequence-level risk.} With
+$\mathcal R_n=(\E|W_M-W|)^2+\tfrac1n\E[W_M^2]$ and pivotal $Z$, the surface
+$\Delta=\log L_2-\log L_1$ is flat in $\varphi$ and the optimum is the constant cap
+$M=\min(k,\bar C)$; this is the analytic counterpart of the four null measurements
+(Remark~\ref{rem:eps0}).
+ 
+\emph{Token-level mean-squared error.} With the clean estimand and the exact conditional
+first-order condition,
+\begin{align}
+C(k,p)
+&\eqlab{a}
+\frac{n\,\langle-b,\ v(k,p)\rangle}{s(k,p)},
+\qquad
+v=\E[\ell'\mid k,p],\quad s=\E[\norm{\ell'}^2\mid k,p],
+\nonumber\\
+&\eqlab{b}
+\frac{n\,\langle-b,\bar u\rangle}{\kappa}\,(1-p)^{-1},
+\label{eq:token_mse}
+\end{align}
+where (a) is the pointwise stationarity of bias$^2$ plus variance; (b) substitutes
+Lemma~\ref{lem:score}: the payload norm enters the numerator once (bias is linear in $m$)
+and the denominator twice (variance is quadratic), leaving one inverse power. The cap
+\emph{loosens} with confidence---the opposite of the deployed operator. The mechanism is
+transparent: high-confidence tokens carry small payload norms, so their weight errors are
+cheap in variance, and any average-case criterion spares them. The contamination they
+carry is invisible at $O(\epsilon)$ to an average-case criterion and decisive to the
+robust one; that reversal, not any expansion order, is the content of
+Remark~\ref{rem:amplitude}.
+% =============================================================================
+\section{Experimental Details}
+\label{app:experimental}
+
+\subsection{Diagnostics}
+\label{app:experimental-diagnostics}
+
+\subsection{Implementation and Hardware}
+\label{app:experimental-implementation}
+
+\subsection{Preregistered Evaluation Contract}
+\label{app:experimental-contract}
+
+\subsection{Additional Tables and Figures}
+\label{app:experimental-results}
+
+% =============================================================================
+\section{Additional Results and Scope}
+\label{app:discussion}
+
+\paragraph{Uniform bias rather than finite-sample MSE.}
+\Cref{thm:band-capping,thm:localized-gating,prop:posterior-gate} optimize a uniform bias constant or its integrated analogue. Sampling variance is not part of the population criterion except for the calibration bound in \Cref{thm:band-capping}. Adding finite-sample MSE generally creates an interior bias--variance tradeoff and requires second moments, sample size, and a covariance model.
+
+\paragraph{Localization is a theorem condition.}
+The statistical separation between capping and zeroing comes from restricting the corrupted ratio support to $\Lset$. Payload-validity diagnostics must test whether corrupted tokens are concentrated in the declared region. If localization fails, \Cref{eq:nonidentifiability-gap} is the safe comparison and zeroing has no class-wide advantage over the cap at the same upper level.
+
+\paragraph{The escape set is estimated in practice.}
+\Cref{thm:localized-gating} conditions on a fixed $\Lset$. Replacing it by $\widehat\Lset$ adds clean fidelity error bounded by
+\begin{equation}
+B\E_{P_0}[K\1\{K\in\Lset\triangle\widehat\Lset\}],
+\end{equation}
+while the true reachable-set supremum may change discontinuously unless physical reachability near the estimated boundary is controlled. The calibration rule should therefore be frozen and its boundary sensitivity reported separately.
+
+\paragraph{True supremum versus essential supremum.}
+The localized class permits a corrupted law to concentrate on a physically reachable ratio that has zero clean probability. This is why \Cref{eq:localized-risk} uses a true supremum over $\Lset$, not a $P_0$-essential supremum. The fixed-density model in \Cref{eq:density-risk} instead integrates with respect to $g$ and is insensitive to $g$-null points.
+
+\paragraph{Channel separability.}
+The matching constructions in \Cref{lem:joint-risk} independently choose clean and corrupted conditional payload means and align them along a common vector. This is appropriate for the latent-channel class in \Cref{eq:localized-class}. If a physical constraint forces both channels to share the same payload map at every overlapping ratio, \Cref{eq:localized-risk} remains an upper bound, but exact equality may fail.
+
+\paragraph{Unknown side allocation.}
+\Cref{cor:two-sided} assumes fixed masses $\eps_-$ and $\eps_+$. If only total mass $\eps$ is fixed and its side allocation is unspecified, the exposure term becomes
+\begin{equation}
+\eps B\max\left\{\sup_{k\in\Lset_-}\abs{M(k)},\sup_{k\in\Lset_+}\abs{M(k)}\right\}.
+\end{equation}
+The side problems no longer separate. The fixed-mass formulation should therefore be used only when side-specific route-disagreement rates are stable enough to support it.
+
+\end{document}

@@ -1,0 +1,20 @@
+# Drop this in as .gitignore inside the cloned project.
+# LaTeX build artifacts produced by local compilation.
+# Note: *.bbl is deliberately NOT ignored -- arXiv and several conference
+# submission systems want the .bbl file included.
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.blg
+*.nav
+*.snm
+*.vrb
+*.lof
+*.lot
+*.idx
+*.ilg
+*.ind

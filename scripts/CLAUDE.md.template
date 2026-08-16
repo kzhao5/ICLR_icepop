@@ -1,0 +1,115 @@
+# 项目说明：ICEPOP 论文（LaTeX）
+
+这是一个 LaTeX 论文项目。作者在本地用 VS Code 写作，项目同时存在于三个位置，
+需要手动用 git 保持同步。请严格按下面的规则操作。
+
+## 三个位置
+
+```
+    Overleaf 网页编辑器            <- 合作者可能在这里改
+           ↑↓
+    本地 ~/icepop-paper           <- 作者主要在这里写（VS Code），source of truth
+           ↑↓
+    GitHub kzhao5/ICLR_icepop     <- 版本备份
+```
+
+Overleaf 和 GitHub **不直接通信**，本地是唯一的中转站。
+没有任何自动同步，每一次同步都必须显式跑 git 命令。
+
+## remotes 与分支
+
+```
+overleaf   https://git@git.overleaf.com/6a74bdf66d6f76613d1938c0
+origin     https://github.com/kzhao5/ICLR_icepop.git
+```
+
+**分支两边都是 `main`。** 不要假设是 `master`。
+不确定时先跑 `git branch --show-current`。
+
+## 最常用：作者在本地写完，要同步出去
+
+这是默认场景，用户说"同步一下"通常指这个：
+
+```bash
+cd ~/icepop-paper
+git add -A
+git commit -m "<描述这次改了什么>"
+git pull --rebase overleaf main    # 必须先拉，否则 push 会被拒
+git push overleaf main             # 推回 Overleaf，网页端会立刻刷新
+git push origin main               # 推到 GitHub 备份
+```
+
+顺序不能变：**先 commit，再 pull，最后 push**。
+
+## 场景二：合作者在 Overleaf 网页上改了
+
+```bash
+cd ~/icepop-paper
+git pull --rebase overleaf main
+git push origin main
+```
+
+这个方向只读 Overleaf，不写，是安全操作。
+
+## 场景三：合作者在 GitHub 上改了
+
+```bash
+git pull --rebase origin main
+git push overleaf main
+```
+
+## 冲突处理
+
+同一个文件在本地和 Overleaf 都被改过时，`git pull --rebase` 会冲突：
+
+```
+CONFLICT (content): Merge conflict in main.tex
+```
+
+按普通 git 冲突处理：打开文件找 `<<<<<<<` / `=======` / `>>>>>>>`，
+手动合并（**两边的内容通常都要保留**，论文改动多是不同段落，不是二选一），然后：
+
+```bash
+git add <文件>
+git rebase --continue
+```
+
+如果情况复杂拿不准，**停下来问作者**，不要自作主张丢弃任何一边的文字。
+论文正文是作者的心血，丢一段话比冲突本身严重得多。
+
+想放弃这次 rebase 回到干净状态：`git rebase --abort`
+
+## 禁止事项
+
+- **不要 `git push --force` 到 `overleaf`。** Overleaf 的 git 服务端对历史重写支持很差，
+  可能导致项目状态损坏或协作者的编辑丢失。
+- **不要 rebase / amend 任何已经 push 到 `overleaf` 的 commit**，理由同上。
+- **不要提交 LaTeX 编译产物**（`.aux` `.log` `.out` `.fls` `.fdb_latexmk` `.synctex.gz` 等），
+  项目根目录的 `.gitignore` 已经覆盖了这些。
+- **不要把 `*.bbl` 加进 `.gitignore`。** arXiv 和多个会议的投稿系统要求提交 `.bbl` 文件。
+- **不要把 Overleaf 的 git token 写进任何文件、脚本或 commit。**
+  认证时用户名可以随便填，密码栏粘贴 token。
+- **不要主动 push 到 GitHub 上的其他分支**，只用 `main`。
+
+## 认证说明
+
+- `overleaf` remote 用 HTTPS + token 认证。提示输入密码时，粘贴的是
+  Overleaf → Account Settings → Git Integration 里生成的 token，**不是账号密码**。
+- 如果 push/pull 报 `Authentication failed`，多半是 token 过期或被 revoke 了，
+  提示作者去重新生成，不要试图绕过。
+
+## 本地编译
+
+```bash
+latexmk -pdf main.tex     # 主文件名以实际为准
+latexmk -c                # 清理中间产物
+```
+
+改完 `.bib` 后需要完整重跑一次 latexmk 才能让引用正确更新。
+
+## 论文相关的注意事项
+
+- 这是投 ICLR 的稿件。如果处于双盲评审期，**不要**在任何公开位置
+  （commit message、README、GitHub issue）泄露作者身份信息。
+- 修改正文时保持作者原有的措辞风格和术语用法，不要顺手"润色"没被要求改的段落。
+- 改动 `.tex` 后，如果环境里有 LaTeX，编译一次确认没有语法错误再提交。

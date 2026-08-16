@@ -100,10 +100,26 @@ git rebase --continue
 
 ## 本地编译
 
+主文件是 `iclr2027_conference.tex`（ICLR 2027 官方模板）。
+
 ```bash
-latexmk -pdf main.tex     # 主文件名以实际为准
-latexmk -c                # 清理中间产物
+latexmk -pdf iclr2027_conference.tex
+latexmk -c                          # 清理中间产物
 ```
+
+项目文件构成：
+
+```
+iclr2027_conference.tex    正文（唯一需要编辑的文件）
+iclr2027_conference.bib    参考文献
+iclr2027_conference.sty    ICLR 官方样式，不要改
+iclr2027_conference.bst    ICLR 官方 bib 样式，不要改
+math_commands.tex          ICLR 模板自带的数学宏定义
+fancyhdr.sty / natbib.sty  模板附带的依赖，不要改
+```
+
+带"不要改"的是 ICLR 官方模板文件，改动它们会导致格式不合规、可能被 desk reject。
+自定义宏请加在 `iclr2027_conference.tex` 的导言区，不要写进 `.sty`。
 
 改完 `.bib` 后需要完整重跑一次 latexmk 才能让引用正确更新。
 

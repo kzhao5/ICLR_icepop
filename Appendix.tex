@@ -60,6 +60,37 @@ The following choices were fixed before the corresponding runs. The residual thr
 \label{fig:pivot}
 \end{figure}
 
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{figures/regions.pdf}
+\caption{Intervention regions of the four operators in the plane of the two engine probabilities of the sampled token, $\pi^{\mathrm{inf}}(y_t)$ (horizontal) and $\pi^{\mathrm{trn}}(y_t)$ (vertical); the shaded region is truncated or masked, the dashed line is $\pi^{\mathrm{trn}}=\pi^{\mathrm{inf}}$. (a) TIS caps the ratio at $2$. (b) IcePop masks outside $[0.5,5]$. (c) The Bernoulli-KL mask with threshold $2$ excludes only extreme corners of the plane by definition; the additional tokens it removes in practice are those with a probability of exactly one on either engine, which the metric maps to an undefined value (Section~\ref{sec:experiments-results}). (d) The deployed band truncates above a curve which approaches the diagonal as $\pi^{\mathrm{trn}}\to1$; blue points are a sample of kept tokens and red points the truncated tokens from the deployed-operator run, which sit at the top edge of the plane.}
+\label{fig:regions}
+\end{figure}
+
+\begin{table}[h]
+\centering
+\caption{Intervention rate and cost per method (seed one). The intervened fraction is reported by the training framework as the fraction of loss tokens that were truncated or masked, averaged over the run; wall-clock time is the median time between consecutive optimizer steps on the same node type. Every operator is an elementwise map of two log-probability tensors that are already computed for the decoupled loss, so no method adds a forward or backward pass.}
+\label{tab:overhead}
+\small\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccc}
+\toprule
+Method & Intervened tokens (\%) & Seconds per step & Extra passes & Held-out (\%) \\
+\midrule
+No correction & 0 & 33 & none & 56.10 \\
+Exact ratio & 0 & 32 & none & 64.59 \\
+TIS & 0.8 & 32 & none & 62.40 \\
+IcePop & 4.1 & 33 & none & 64.82 \\
+KPop (as implemented) & 21.9 & 31 & none & 59.44 \\
+KPop (numerically corrected) & 0.5 & 31 & none & 58.45 \\
+Ours & 4.2 & 34 & none & 64.67 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{The KL mask and probability saturation.}
+The binary-KL metric of the KPop baseline is $\mathrm{KL}(\mathrm{Bern}(p)\,\|\,\mathrm{Bern}(q))=p\log(p/q)+(1-p)\log((1-p)/(1-q))$ evaluated in both directions, with $p$ and $q$ clamped to $[10^{-8},1-10^{-8}]$. In single precision the upper clamp is the identity, so a token whose probability is exactly one on both engines yields $0\cdot\log(0/0)$, and a token whose probability is exactly one on one engine yields $+\infty$; the bounds check treats both as out of bounds. On the tokens logged in the KPop run, $16.5\%$ have probability exactly one on both engines and $2.8\%$ on one engine, which together with the $0.45\%$ of tokens whose finite metric exceeds the threshold reproduces the $22\%$ intervention rate that the framework reports. Recomputing the metric in double precision with a representable clamp and mapping the undefined case to zero gives a mask rate of $0.45\%$. We report the framework's implementation as run in the main text because it is the implementation practitioners obtain. A numerically corrected variant, run under the same recipe with three seeds, scores $58.45$, $62.40$, and $62.24$ ($61.03\pm2.24$), which lifts the KL mask by about two points but leaves it below the cap, the gate, and the band; the residual gap is consistent with the mask acting on a fixed KL threshold that does not follow the confidence-dependent width of the mismatch.
+
 \begin{table}[h]
 \centering
 \caption{Trigger statistics of the band on the tokens logged during the deployed-operator run, for several slopes applied to the same tokens. Residual precision is the share of truncated tokens with $|Z_t|>5$ in training-time units; stale precision is the share with rollout version behind the current one; enrichment is stale precision divided by the base staleness rate of $0.58\%$.}
@@ -96,7 +127,6 @@ symmetric band, $\lambda_-=1.0$ & 48.98 & --- & 0.827 & 0.869 \\
 \end{tabular}
 \end{table}
 
-% =============================================================================
 \section{Additional Results and Scope}
 \label{app:discussion}
 

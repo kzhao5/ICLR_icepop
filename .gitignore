@@ -1,0 +1,14 @@
+# LaTeX build products (keep *.bbl: required by arXiv / submission systems)
+*.aux
+*.log
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.blg
+*.toc
+*.nav
+*.snm
+*.vrb
+# local-only files (never commit: contains credentials)
+CLAUDE.md

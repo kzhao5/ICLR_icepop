@@ -1,0 +1,127 @@
+\appendix
+\section{Experimental Details}
+\label{app:experimental}
+
+\subsection{Diagnostics}
+\label{app:experimental-diagnostics}
+
+\paragraph{Static measurement.}
+Prompts are 2{,}500 problems drawn at random from DAPO-Math-17k. Generation uses vLLM 0.26 in bf16 with eager execution and without prefix caching; each prompt receives eight samples at temperature one and top-$p$ one, at most 1{,}024 tokens per response, and the log-probability of every sampled token is taken from the sampling step itself rather than from a later prefill pass. Rescoring uses HuggingFace Transformers in bf16 with teacher forcing on the exact sampled sequence and the same parameter snapshot; the token at position $t$ is scored from the logits at position $t-1$ on both sides. For the MoE model we record the top-4 expert identities of every layer on both sides and the gate margin between the fourth and fifth expert; the routing read from forward hooks agrees with the identities returned by the fused kernel on $100\%$ of the (token, layer) pairs whose margin is positive. Three controls accompany the main measurement: rescoring in fp32, rescoring the sequence twice on the training engine (zero difference), and rescoring by a prefill pass on the inference engine, which reproduces the decode-time bulk. Bins are equal-mass in $p_t$; scale is the median absolute deviation times $1.4826$; the constant $c$ is a weighted least-squares fit of the bin scale to the bin median of $1-p_t$ on the bins whose median $1-p_t$ exceeds $10^{-3}$; residual bins with fewer than fifty tokens are excluded; confidence intervals are trajectory bootstraps with 500 resamples over 4{,}000 trajectories.
+
+\paragraph{Paired version displacement.}
+To observe the displacement of $\log k_t$ under version staleness on the same tokens, we take three consecutive epoch checkpoints of the deployed-operator run (steps 28, 57, and 86), generate 4{,}000 GSM8K rollouts with the step-57 snapshot as the rollout engine, and rescore every generated token under the step-86 snapshot on the training engine and under the step-28, step-57, and step-86 snapshots on the inference engine by prefill. The difference between the two decode paths of the same snapshot is exactly zero, so the difference between snapshots is the version displacement alone. On these 508{,}915 tokens the displacement is two-sided overall, its median at low confidence is negative because the newer policy has moved probability away from tokens which the older policy sampled with low confidence, its 99th percentile is $0.68$ at a lag of 29 steps and $2.93$ at a lag of 58 steps, and among high-confidence residual tokens it is entirely positive. On tokens generated and scored at the same parameter version, the scale constant of the trained policy is $0.52$, three times its value on the base model.
+
+\paragraph{Training-time logging.}
+The training runs dump, every ten optimizer calls, the rollout-side log-probability, the training-side log-probability at the start of the update, and the parameter version of the rollout for a sample of tokens. Version staleness is the difference between the current version and the rollout version. The training-time scale constant is fitted on the tokens with zero staleness in each third of the run. The trigger statistics of Figure~\ref{fig:trigger} are computed from these dumps; the IcePop population in panel (b) is the set of tokens whose ratio leaves $[0.5,5]$ in the IcePop run.
+
+\paragraph{Sequence-level null measurements.}
+The four measurements of Remark~\ref{rem:eps0} are computed on the static logs with the deployed operator applied at $\lambda_+=2.3$. The surface $\Delta(\varphi)=\log\E[e^{S_{-t}}\mid\varphi]-\log\E[e^{2S_{-t}}\mid\varphi]$, where $S_{-t}$ is the leave-one-out sum of $\log M$ over the trajectory, is estimated with log-sum-exp in twenty geometric bins of $\varphi$; its slope is fitted by weighted least squares and bootstrapped over trajectories. The coefficients $\beta_1$ and $\beta_2$ are the slopes of the conditional mean and the conditional variance of $S_{-t}$ against $c\varphi$. The bare-sum slope is the coefficient of $\varphi$ in a regression of the leave-one-out sum of $\log k$; its permutation null shuffles $\log k$ across tokens while keeping the length of every trajectory. The best-response iteration solves the sequence-level risk for the two-parameter family $\min\{k,Ce^{\lambda(1-p)}\}$ from five initial points. All four are reported in Section~\ref{sec:experiments-diagnostics}.
+
+\subsection{Implementation and Hardware}
+\label{app:experimental-implementation}
+
+Training uses AReaL v2.0.0 with its decoupled loss, in which the rollout-side and training-side log-probabilities are both available per token. All operators are implemented in the same token-level branch that AReaL uses for TIS and IcePop, so that every arm differs only in the map $M$; the deployed operator multiplies the loss by $\exp\big(\min(\log k_t,\lambda_+\max(1-p_t,\varepsilon_0))\big)$ with $p_t$ taken from the training-side log-probability, and it carries no gradient. Three changes to the framework were needed for a shared cluster: three hard-coded worker-readiness timeouts were raised from 30 to 300 seconds, a binary-KL option was added to the mask whitelist, and a token-level dump hook was added. The training engine must use flash attention; with packed sequences the scaled-dot-product fallback attends across sequence boundaries and corrupts the training-side log-probabilities, which we detected as a median $\log k_t$ far from zero on every method. Each arm runs on one node with eight A100-80GB GPUs, with four GPUs serving SGLang (data parallel) and four training with FSDP, and takes between $1.3$ and $3.5$ hours depending on node sharing. Evaluation uses vLLM with tensor parallelism of four, greedy decoding, at most 2{,}048 tokens, and exact match of the last number in the response against the GSM8K answer. The FP8 runs set the SGLang KV-cache dtype to \texttt{fp8\_e5m2} and change nothing else.
+
+\subsection{Preregistered Evaluation Contract}
+\label{app:experimental-contract}
+
+The following choices were fixed before the corresponding runs. The residual threshold is $\kappa=5$, with $\kappa\in\{4,6\}$ reported as sensitivity. The floor is $\varepsilon_0=5\times10^{-3}$, set from the storage resolution of the log-probabilities before any training run. The slope grid is $\lambda_+\in\{1.6,2.3,3.1\}$ with $\lambda_-\in\{1.0,\infty\}$. All arms use the recipe of Section~\ref{sec:experiments-setup} without per-arm tuning. Held-out accuracy at the final checkpoint is the arbiter of every comparison; training reward is reported but is not used to select between methods. Every ablation changes one element of the operator relative to the deployed configuration. Results marked as seed one are single runs and are read against a standard error of $1.3$ points; the main comparison and the floor ablation use three seeds. The dose--response ablation, the affine variant, the raised floor, and the FP8 rescaling were added after the main comparison; for each of them the value to be tested was fixed from a measurement before the run started, and the outcome was recorded regardless of direction.
+
+\subsection{Additional Tables and Figures}
+\label{app:experimental-results}
+
+\begin{figure}[h]
+\centering
+\begin{minipage}[t]{0.325\linewidth}\centering
+\includegraphics[width=\linewidth]{figures/dualscale_a.pdf}\\[-2pt]{\small (a)}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.325\linewidth}\centering
+\includegraphics[width=\linewidth]{figures/dualscale_b.pdf}\\[-2pt]{\small (b)}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.325\linewidth}\centering
+\includegraphics[width=\linewidth]{figures/dualscale_c.pdf}\\[-2pt]{\small (c)}
+\end{minipage}
+\caption{Bulk width and residual magnitude of $\log k_t$ against $\varphi$ in three regimes. Blue circles: median absolute deviation of $\log k_t$ per equal-mass bin (bulk). Orange squares: median $|\log k_t|$ of residual tokens ($|Z_t|>5$). Dashed line: $c\varphi$ with the fresh-engine constant of that panel; dotted line: $0.12$; shaded band: the quantization floor $\varphi<\varepsilon_0$; lighter to darker shades in (b) and (c) mark fresh versus stale and early versus late. (a) Base model with both engines at the same parameters: both curves scale with $\varphi$ and no additive layer is present. (b) The same trained-policy tokens scored with a fresh engine and with an engine 29 steps stale. (c) Tokens logged during the deployed-operator run, per training third, with the scale constant of that third. In (b) and (c) the residual magnitude at $\varphi<0.02$ lies between $0.04$ and $0.11$, one to two orders of magnitude above $c\varphi$, while at low confidence it remains a fixed multiple of the bulk.}
+\label{fig:dualscale}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\begin{minipage}[t]{0.325\linewidth}\centering
+\includegraphics[width=\linewidth]{figures/pivot_a.pdf}\\[-2pt]{\small (a)}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.325\linewidth}\centering
+\includegraphics[width=\linewidth]{figures/pivot_b.pdf}\\[-2pt]{\small (b)}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.325\linewidth}\centering
+\includegraphics[width=\linewidth]{figures/pivot_c.pdf}\\[-2pt]{\small (c)}
+\end{minipage}
+\caption{Standardized view on the MoE model. (a) Quantiles $0.001$ to $0.999$ of $Z_t=\log k_t/(c\varphi_t)$ per equal-mass bin (blue to orange from lower to upper, black is the median): the central quantiles collapse across two decades of $\varphi$, the extreme quantiles drift and are asymmetric. (b) Complementary distribution of $|Z_t|$ off the floor (blue) with the generalized-Pareto fit above the 99th percentile (orange, $\xi_+=0.49$); the dashed line is the equalizer root $\tau^\star=5.7$, which sits at the transition from bulk to tail, and the dotted line is the deployed slope in the same units, $\lambda_+/c=14.8$. (c) The two branches of the worst-case bias of Theorem~\ref{thm:main} evaluated with the empirical $F_Z$ and $\hat\epsilon=0.0176$: the over-truncation branch $H(\tau)^2$ (blue) decreases in $\tau$, the leakage branch $[\epsilon\tau-(1-\epsilon)H(\tau)]^2$ (orange) increases, and their envelope (grey) is minimized at $\tau^\star$ (dashed).}
+\label{fig:pivot}
+\end{figure}
+
+\begin{table}[h]
+\centering
+\caption{Trigger statistics of the band on the tokens logged during the deployed-operator run, for several slopes applied to the same tokens. Residual precision is the share of truncated tokens with $|Z_t|>5$ in training-time units; stale precision is the share with rollout version behind the current one; enrichment is stale precision divided by the base staleness rate of $0.58\%$.}
+\label{tab:trigger}
+\small
+\begin{tabular}{cccccc}
+\toprule
+$\lambda_+$ & Truncated (\%) & Share at $1-p_t<0.1$ & Residual precision & Stale precision & Enrichment \\
+\midrule
+1.0 & 7.14 & 0.82 & 0.26 & 0.022 & 3.8 \\
+1.6 & 5.16 & 0.86 & 0.37 & 0.026 & 4.5 \\
+2.3 & 3.89 & 0.89 & 0.49 & 0.030 & 5.1 \\
+3.1 & 3.05 & 0.91 & 0.62 & 0.033 & 5.8 \\
+4.0 & 2.45 & 0.93 & 0.70 & 0.037 & 6.5 \\
+6.7 & 1.57 & 0.96 & 0.93 & 0.045 & 7.8 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Dose--response of lower-side lifting (seed one). The training reward is the mean over the third epoch; the held-out accuracy of the intermediate checkpoint after one epoch is given where it was evaluated.}
+\label{tab:dose}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Lower side & Held-out (\%) & Held-out after epoch 1 & Train reward & Peak reward \\
+\midrule
+none ($\lambda_-=\infty$) & 64.67 & --- & 0.867 & 0.897 \\
+lift to $w\ge0.001$ & 63.15 & --- & 0.851 & 0.898 \\
+lift to $w\ge0.1$ & 56.10 & 62.62 & 0.878 & 0.910 \\
+symmetric band, $\lambda_-=1.0$ & 48.98 & --- & 0.827 & 0.869 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =============================================================================
+\section{Additional Results and Scope}
+\label{app:discussion}
+
+\paragraph{Uniform bias rather than finite-sample MSE.}
+\Cref{thm:band-capping,thm:localized-gating,prop:posterior-gate} optimize a uniform bias constant or its integrated analogue. Sampling variance is not part of the population criterion except for the calibration bound in \Cref{thm:band-capping}. Adding finite-sample MSE generally creates an interior bias--variance tradeoff and requires second moments, sample size, and a covariance model.
+
+\paragraph{Localization is a theorem condition.}
+The statistical separation between capping and zeroing comes from restricting the corrupted ratio support to $\Lset$. Payload-validity diagnostics must test whether corrupted tokens are concentrated in the declared region. If localization fails, \Cref{eq:nonidentifiability-gap} is the safe comparison and zeroing has no class-wide advantage over the cap at the same upper level.
+
+\paragraph{The escape set is estimated in practice.}
+\Cref{thm:localized-gating} conditions on a fixed $\Lset$. Replacing it by $\widehat\Lset$ adds clean fidelity error bounded by
+\begin{equation}
+B\E_{P_0}[K\1\{K\in\Lset\triangle\widehat\Lset\}],
+\end{equation}
+while the true reachable-set supremum may change discontinuously unless physical reachability near the estimated boundary is controlled. The calibration rule should therefore be frozen and its boundary sensitivity reported separately.
+
+\paragraph{True supremum versus essential supremum.}
+The localized class permits a corrupted law to concentrate on a physically reachable ratio that has zero clean probability. This is why \Cref{eq:localized-risk} uses a true supremum over $\Lset$, not a $P_0$-essential supremum. The fixed-density model in \Cref{eq:density-risk} instead integrates with respect to $g$ and is insensitive to $g$-null points.
+
+\paragraph{Channel separability.}
+The matching constructions in \Cref{lem:joint-risk} independently choose clean and corrupted conditional payload means and align them along a common vector. This is appropriate for the latent-channel class in \Cref{eq:localized-class}. If a physical constraint forces both channels to share the same payload map at every overlapping ratio, \Cref{eq:localized-risk} remains an upper bound, but exact equality may fail.
+
+\paragraph{Unknown side allocation.}
+\Cref{cor:two-sided} assumes fixed masses $\eps_-$ and $\eps_+$. If only total mass $\eps$ is fixed and its side allocation is unspecified, the exposure term becomes
+\begin{equation}
+\eps B\max\left\{\sup_{k\in\Lset_-}\abs{M(k)},\sup_{k\in\Lset_+}\abs{M(k)}\right\}.
+\end{equation}
+The side problems no longer separate. The fixed-mass formulation should therefore be used only when side-specific route-disagreement rates are stable enough to support it.

@@ -1,290 +1,123 @@
 \section{The CIS Framework}
+\label{sec:cis}
 
+\subsection{A two-channel model of the mismatch}
+\label{sec:two_channel}
 
-% This section develops the estimation theory behind the operator. The
-% organizing principle is a distinction between two components of the observed
-% mismatch that differ not in magnitude but in \emph{epistemic status}: one
-% component follows a measurable law and is therefore amenable to averaging;
-% the other is identified only at the level of sets---sign, sparsity,
-% envelope---and the only well-posed operation against it is a worst-case one.
-% The resulting objective is a robust mean-squared error, and its minimizer over
-% the shrinkage class is precisely the deployed operator.
+We measured $k_{i,t}$ systematically on large-scale rollouts; experimental
+details are given in \Cref{sec:exp_measurement}. Write
+$p_{i,t}=\pi_{\mathrm{train}}(y_{i,t}\mid x,y_{i,<t};\theta_{\mathrm{old}})$
+for the training-side probability of the token that was actually sampled, and
+drop the index $i$ in what follows. Two facts emerge. First, the conditional
+law of $\log k_t$ forms a \emph{scale family},
+$\log k_t \,\big|\, p_t \overset{d}{=} c\,(1-p_t)\,Z$ with the law of $Z$ not
+depending on $p_t$, so that the shape is fixed and the width is proportional
+to $1-p_t$, where $c>0$ is a constant of the model and engine configuration.
+Second, a small fraction of tokens does not obey this law: their deviations do
+not scale with $1-p_t$, and their magnitude is set by router logit gaps, by
+the storage resolution of the log-probabilities, and by version displacement
+between the scoring and the generation snapshot. These two facts give the
+following model.
 
-% \subsection{Two-channel structure of the mismatch}
-% \label{sec:two_channel}
+\begin{definition}[Two-channel model]
+\label{def:two_channel}
+Conditionally on $p_t$, the observed log-ratio is generated as
+\begin{equation}
+\log k_t
+\;=\;
+c\,(1-p_t)\,Z_t
+\;+\;
+B_t ,
+\label{eq:two_channel}
+\end{equation}
+where the scale component satisfies $Z_t\sim F_Z$ with $F_Z$ independent of
+$p_t$, $\E[Z_t]=0$, $\E[Z_t^{2}]<\infty$, $\E[(Z_t)_{+}]>0$, and an upper tail
+that is generalized Pareto with shape $\xi_+\in(0,1)$, no parametric form
+being assumed for $F_Z$; and the residual component satisfies
+$\Prob(B_t\ne0)\le\eps$ and $-B_{\min}\le B_t\le B_{\max}$ with
+$B_{\min},B_{\max}$ independent of $p_t$, the event $\{B_t\ne0\}$ being
+independent of $(Z_t,p_t)$ while the value of $B_t$ within the envelope is
+left unmodeled.
+\end{definition}
+\subsection{Robust risk and the optimal operator}
+\label{sec:robust_risk}
 
-% Our measurements (Section~\ref{sec:experiments}) establish two facts about
-% $\log k_t$. First, the bulk obeys a \emph{scale law}: the conditional width is
-% linear in the training-side uncertainty,
-% \begin{equation}
-% \operatorname{scale}\bigl(\log k_t\,\big|\,p_t\bigr)
-% =
-% c\,(1-p_t),
-% \label{eq:scale_law}
-% \end{equation}
-% measured across six decades with $R^2\approx0.999$, and the standardized
-% deviation collapses to a single pivotal law across confidence bins. Second,
-% the scale law is \emph{violated} by a sparse set of tokens whose deviations do
-% not shrink with $1-p_t$: expert-routing discontinuities, whose magnitude is
-% set by logit gaps rather than by the local noise scale; the finite resolution
-% of stored log-probabilities; and, in asynchronous deployments, version
-% displacement between the scoring and generation snapshots, measured at a
-% median magnitude of $0.12$ that is constant across confidence bins.
+By \Cref{def:two_channel}, $B_t$ is characterized only at the level of sets and
+carries no distribution, so an expectation over it has no measure to be taken
+against. We therefore replace the criterion of \Cref{sec:prelim_estimation} by
+a \emph{robust risk},
+\begin{equation}
+\mathcal E(\Mclass)
+:=
+\sup_{P\in\Uset}
+\left\{
+\norm{G_{\Mclass}-G_0}^{2}
++\frac{1}{n}\E\big[\Mclass^{2}\norm{\ell'}^{2}\big]
+\right\},
+\label{eq:robust_risk}
+\end{equation}
+where
+$\Uset=\big\{P:\ \log k_t=c(1-p_t)Z_t+B_t,\ Z_t\sim F_Z,\
+\Prob(B_t\ne0)\le\eps,\ -B_{\min}\le B_t\le B_{\max}\big\}$
+and $G_0=\E\big[e^{\,c(1-p_t)Z_t}\ell'\big]$ is the gradient induced by the
+scale channel alone.
 
-% These facts fix the model. Write $\varphi_t:=1-p_t$ for now (the
-% finite-precision floor is introduced in Section~\ref{sec:deployed}).
+\begin{theorem}[CIS operator, informal]
+\label{thm:cis_informal}
+Under \Cref{def:two_channel}, and when the displacement of the residual channel
+in standardized coordinates is sufficiently large, the minimizer of the robust
+risk over the shrinkage class is
+\begin{equation}
+\log\Mclass^{\star}(k_t,p_t)
+=
+\argminop_{\Mclass\in\Mdown}\mathcal E(\Mclass)
+=
+\min\Big(\log k_t,\;\lambda_+\,(1-p_t)\Big),
+\label{eq:cis_operator}
+\end{equation}
+where the slope is $\lambda_+=c\,\tau^{\star}$ and the threshold $\tau^{\star}$
+is uniquely determined by $F_Z$, the residual occurrence rate $\eps$, and the
+sample size $n$.
+\end{theorem}
+\subsection{The deployed algorithm}
+\label{sec:algorithm}
 
-% \begin{assumption}[Scale channel]
-% \label{asm:scale}
-% On the scale component,
-% $\log k^{(0)}_t=c\,\varphi_t\,Z_t$ with $Z_t\mid p_t\sim F_Z$ independent of
-% $p_t$, $\E[Z_t]=0$, $\E[Z_t^2]<\infty$, $\E[(Z_t)_+]>0$, and
-% $\E[(Z_t)_-]<\infty$. The upper tail of $F_Z$ is generalized Pareto with
-% shape $\xi_+\in(0,1)$.
-% \end{assumption}
+\Cref{thm:cis_informal} gives a one-sided bound whose width scales with
+$1-p_t$. One engineering correction is needed: as $p_t\to1$ the observed width
+of $\log k_t$ saturates at the storage resolution of the log-probabilities
+rather than following $c(1-p_t)$, so an unfloored band would truncate
+quantization noise rather than mismatch. We therefore floor the scale variable
+at $\kappa$, which gives \Cref{alg:cis}. The two hyperparameters admit measured
+defaults rather than a search: \Cref{thm:cis_informal} compiles
+$\lambda=c\,\tau^{\star}$, and $\kappa$ is the storage resolution of the
+log-probabilities.
 
-% \begin{assumption}[Residual channel]
-% \label{asm:residual}
-% The observed mismatch is
-% \begin{equation}
-% \log k_t
-% =
-% c\,\varphi_t\,Z_t
-% +
-% \delta_t\,B_t,
-% \label{eq:two_channel}
-% \end{equation}
-% where $\delta_t\in\{0,1\}$ with $\Pr(\delta_t=1)=\alpha\le\epsilon$ and
-% $\delta_t\perp(Z_t,\varphi_t,\ell_t')$, and, conditionally on $\delta_t=1$,
-% the magnitude satisfies $0\le B_t\le B_{\max}$ with $B_{\max}$ independent of
-% $\varphi_t$. The magnitude $B_t$ may depend measurably on $Z_t$; independence
-% is assumed for the indicator only.
-% \end{assumption}
+\begin{wrapfigure}{r}{0.5\textwidth}
+\vspace{-\baselineskip}
+\begin{minipage}{0.5\textwidth}
+\begin{algorithm}[H]
+\caption{Calibrated importance sampling (CIS)}
+\label{alg:cis}
+\begin{algorithmic}[1]
+\Require $\ell^{\mathrm{train}}_j$, $\ell^{\mathrm{infer}}_j$, $\ell'_j$ for
+the $n$ tokens of the batch; $\lambda$; $\kappa$
+\For{$j=1,\dots,n$}
+  \State $\log k_j\gets\ell^{\mathrm{train}}_j-\ell^{\mathrm{infer}}_j$,\quad
+  $p_j\gets\exp(\ell^{\mathrm{train}}_j)$
+  \State $w_j\gets\exp\big(\min\{\log k_j,\;
+  \lambda\max(1-p_j,\kappa)\}\big)$
+\EndFor
+\State \Return $\widehat G_{\mathrm{CIS}}
+=\frac{1}{n}\sum_{j=1}^{n}\operatorname{stopgrad}(w_j)\,\ell'_j$
+\end{algorithmic}
+\end{algorithm}
+\end{minipage}
+\end{wrapfigure}
 
-% Assumption~\ref{asm:residual} deliberately refrains from modeling the law of
-% $B_t$. Its three set-level clauses are each measured: sparsity from the
-% concentration of the standardized distribution outside a thin tail; the
-% non-scaling envelope from the constancy of residual magnitudes across
-% confidence bins; one-sidedness of the \emph{threat} from the support bound of
-% Section~\ref{sec:prelim} together with the dose--response ablation, which
-% jointly confine the harmful direction to the upper side. The per-token value
-% of $B_t$, by contrast, is unavailable in principle at operator-application
-% time, and unstable across serving configurations; we therefore treat it as an
-% adversarial quantity within its measured envelope, in the tradition of
-% contamination-robust statistics.
-
-% The single structural fact driving all results is the
-% \emph{non-commensurability} of the two channels: in standardized units the
-% residual displacement is
-% \begin{equation}
-% \beta(\varphi)
-% :=
-% \frac{B_{\max}}{c\,\varphi}
-% \;\xrightarrow[\varphi\to0]{}\;\infty,
-% \label{eq:beta}
-% \end{equation}
-% so the same physical displacement that hides within $1.5$ standard deviations
-% at $p=0.5$ becomes a $10^{2}$-standard-deviation outlier at $p=0.995$.
-% Standardization is not a cosmetic change of coordinates; it is the mechanism
-% that separates the channels.
-
-% \subsection{The robust estimation objective}
-% \label{sec:objective}
-
-% Let $\ell_t'=\hat A_t\nabla_\theta\log\pi_\theta(y_t\mid h_t)$ denote the
-% per-token payload and
-% $G_0=\E\bigl[e^{c\varphi_tZ_t}\,\ell_t'\bigr]$ the gradient induced by the
-% scale channel alone---the estimand: contamination is to be removed, not
-% reproduced. For $M\in\mathcal M_{\downarrow}$, write
-% $\widehat G_M=n^{-1}\sum_{i}M(k_i,p_i)\ell_i'$. A standard bias--variance
-% decomposition bounds the mean-squared error by
-% $\|\E[M\ell']-G_0\|^2+n^{-1}\E[M^2\|\ell'\|^2]$, and we define the
-% \emph{robust risk} by taking the worst case over the residual mechanism while
-% averaging over the scale channel:
-% \begin{equation}
-% \boxed{\;
-% \mathcal E(M)
-% :=
-% \sup_{\{B_t\}\in\,\mathcal U_{\epsilon,B_{\max}}}
-% \left\{
-% \Bigl\|\E\bigl[M\,\ell'\bigr]-G_0\Bigr\|^{2}
-% +
-% \frac1n\,\E\bigl[M^{2}\|\ell'\|^{2}\bigr]
-% \right\}.
-% \;}
-% \label{eq:robust_risk}
-% \end{equation}
-% The asymmetric treatment---expectation over $Z$, supremum over $B$---is not a
-% preference but a consequence of the knowledge states established in
-% Section~\ref{sec:two_channel}: a quantity with an identified law admits an
-% expectation; a quantity known only through a set does not, and the worst case
-% is the only well-posed alternative. Criteria that average over both channels
-% are structurally blind to an $O(\epsilon)$ contamination, a point we return
-% to in Remark~\ref{rem:eps0}.
-
-% Two reductions make \eqref{eq:robust_risk} tractable; both are proved in
-% Appendix~\ref{app:proof}. First, the score norm obeys
-% \begin{equation}
-% (1-p_t)\ \le\ \bigl\|\nabla_z\log\pi(y_t\mid h_t)\bigr\|_2\ \le\ \sqrt2\,(1-p_t)
-% \label{eq:score_norm}
-% \end{equation}
-% (Lemma~\ref{lem:score_norm}), so within a confidence layer the payload norm
-% factors out of both terms of \eqref{eq:robust_risk} and the layerwise problem
-% is scalar. Second, parameterizing the operator in standardized coordinates,
-% $\log M=c\varphi\,\psi(U)$ with $U=\log k/(c\varphi)$, the shrinkage
-% constraint becomes $\psi(u)\le u$, and the layer risk depends on $\psi$ only
-% through the truncation deficit $C(\psi)=\E[Z-\psi(Z)]$, the envelope
-% $\Sigma(\psi)=\sup_u\psi(u)$, and the second moment $\E[\psi(Z)^2]$.
-
-% \subsection{Main result}
-% \label{sec:main_result}
-
-% Write $H(\tau):=\E[(Z-\tau)_+]$ for the mean excess of the pivotal law and
-% $\bar F_Z:=1-F_Z$.
-
-% \begin{theorem}[High-confidence minimax operator]
-% \label{thm:main}
-% Let the confidence layer satisfy
-% $\varphi<\varphi^{\ast}:=B_{\max}/(c\,\tau^{\ast})$, so that
-% $\beta(\varphi)\gg\tau^\ast$ and the reachability defect of
-% Lemma~\ref{lem:eta_reachability} vanishes. Then, to leading order in
-% $\epsilon$ and $c\varphi$:
-% \begin{enumerate}
-% \item[\emph{(i)}] the inner supremum in \eqref{eq:robust_risk} is attained by
-% displacing every contaminated token to the envelope of the operator, and the
-% worst-case squared bias depends on $\psi$ only through
-% $\max\{C^2,\ [\epsilon\Sigma-(1-\epsilon)C]^2\}$;
-% \item[\emph{(ii)}] there is no loss in restricting to the clipping family
-% $\psi_\tau(z)=\min(z,\tau)$, which attains the minimal feasible envelope at
-% every truncation deficit, and which the strictly convex $O(1/n)$ second-moment
-% term selects uniquely;
-% \item[\emph{(iii)}] the minimizer of $\mathcal E$ over
-% $\mathcal M_{\downarrow}$ is
-% \begin{equation}
-% \log M^{\star}(k_t,p_t)
-% =
-% \min\bigl(\log k_t,\ c\,\varphi_t\,\tau^{\ast}\bigr),
-% \label{eq:optimal_operator}
-% \end{equation}
-% where $\tau^{\ast}$ is the unique root of the \emph{equalizer equation}
-% \begin{equation}
-% \frac{H(\tau^{\ast})}{\tau^{\ast}}
-% =
-% \frac{\epsilon}{2-\epsilon}\,;
-% \label{eq:equalizer}
-% \end{equation}
-% \item[\emph{(iv)}] the finite-sample optimum satisfies
-% $\tau^\star_n=\tau^\star+O(n^{-1})$.
-% \end{enumerate}
-% \end{theorem}
-
-% The proof (Appendix~\ref{app:proof}) proceeds in three steps: a
-% \emph{reachability collapse}---because $\beta(\varphi)\to\infty$, the
-% adversary can transport any contaminated token to the operator's envelope, so
-% the worst case is an explicit function of $\Sigma$ rather than of the full
-% shape of $\psi$; a \emph{minimal-envelope argument}---among all shrinkage
-% operators with a given truncation deficit, the clip uniquely minimizes the
-% envelope; and an \emph{equalizer step}---the worst-case bias is the maximum of
-% a decreasing branch (over-truncation of clean mass) and an increasing branch
-% (residual leakage), so the optimum sits where the two branches cross, which is
-% \eqref{eq:equalizer}. Pivotality of $F_Z$ is what makes $\tau^\ast$ a single
-% number rather than a function of $p$.
-
-% Equation~\eqref{eq:equalizer} admits a one-line reading: the operator
-% deliberately truncates a $\Theta(\epsilon)$ quantile of \emph{clean} mass so
-% that, at the worst case, the bias of over-truncation exactly balances the
-% bias of contamination leakage. Clipping here is not variance control; it is
-% bias equalization against an adversary whose displacement is, at high
-% confidence, two orders of magnitude larger than the local noise scale.
-
-% \begin{corollary}[Compilation of the band]
-% \label{cor:compile}
-% Under the generalized Pareto tail of Assumption~\ref{asm:scale},
-% $H(\tau)\sim\frac{\xi_+}{1-\xi_+}\,\tau\,\bar F_Z(\tau)$, and
-% \eqref{eq:equalizer} compiles to
-% \begin{equation}
-% \bar F_Z\bigl(\tau^{\ast}\bigr)
-% \;\sim\;
-% \frac{1-\xi_+}{\xi_+}\cdot\frac{\epsilon}{2-\epsilon},
-% \qquad
-% \lambda_+:=c\,\tau^{\ast}.
-% \label{eq:compile}
-% \end{equation}
-% Every quantity on the right is measurable without a training run: $c$ and
-% $\xi_+$ from the static mismatch measurement, $\epsilon$ from the residual
-% exceedance rate. The compiled slope carries two falsifiable predictions:
-% across serving configurations the same $\epsilon$ must move $\lambda_+$
-% proportionally to $c$, and on a single configuration the empirical exceedance
-% $\Pr(Z>\lambda_+/c)$ must agree with the independently estimated
-% contamination rate to within its order of magnitude.
-% \end{corollary}
-
-% \subsection{The deployed operator}
-% \label{sec:deployed}
-
-% Assumption~\ref{asm:scale} is measured on the bulk of the confidence range.
-% As $p_t\to1$ the observed width stops following $c(1-p_t)$ and saturates at
-% the storage resolution of the log-probabilities---itself an instance of the
-% residual channel. Below that point the unfloored band would be narrower than
-% the numerical resolution and the operator would truncate quantization noise
-% rather than mismatch. We therefore replace the scale variable by its floored
-% version and deploy
-% \begin{equation}
-% \boxed{\;
-% \log M^{\star}(k_t,p_t)
-% =
-% \min\Bigl(
-% \log k_t,\ \
-% \lambda_+\,\max\bigl(1-p_t,\ \varepsilon_0\bigr)
-% \Bigr),
-% \;}
-% \label{eq:deployed}
-% \end{equation}
-% with $\varepsilon_0$ the measured quantization scale. By
-% \eqref{eq:score_norm} the tokens the floor spares carry the smallest payload
-% norms, so the relaxation is inexpensive as well as necessary; the ablation of
-% Section~\ref{sec:experiments} shows that without the floor the band collapses
-% at high confidence and training diverges.
-
-% \subsection{Discussion}
-% \label{sec:theory_discussion}
-
-% \begin{remark}[The $\epsilon=0$ section]
-% \label{rem:eps0}
-% Setting $\epsilon=0$ removes the only confidence-differentiated force from
-% \eqref{eq:robust_risk}; the optimum reverts to a constant cap whose threshold
-% is set by the sample size, $\tau^\star_{\mathrm{var}}=(n-1)\,C(\tau^\star_{\mathrm{var}})$
-% (Appendix~\ref{app:proof}). Our four independent null measurements---the flat
-% $\Delta(\varphi)$ surface, the vanishing coupling channel, the deconfounded
-% bare-sum slope, and the best-response fixed point converging to
-% $\lambda^\star\approx0$---are therefore not failures of the theory but its
-% predictions on the $\epsilon=0$ section: each of those probes evaluates a
-% criterion in which the residual channel is absent by construction. The band
-% is a strict consequence of $\epsilon>0$.
-% \end{remark}
-
-% \begin{remark}[Amplitude versus location]
-% \label{rem:amplitude}
-% The framework separates two events that every weight-magnitude criterion
-% conflates. A large $|Z_t|$ is an \emph{amplitude} extreme of the clean
-% law---a legitimate sample, expensive in variance, correctly handled by the
-% loose sample-size-driven cap that average-case criteria already produce. A
-% nonzero $B_t$ is a \emph{location} error: the weight is computed against the
-% wrong measure. Average-case criteria are blind to it at $O(\epsilon)$; the
-% robust risk sees it because the supremum is taken before the expectation. The
-% band is aimed at the location error, and standardization is what makes that
-% error visible.
-% \end{remark}
-
-% \begin{remark}[Engineering projection]
-% \label{rem:projection}
-% Theorem~\ref{thm:main} is stated for $\varphi<\varphi^{\ast}\approx
-% B_{\max}/(c\tau^\ast)$. Outside this regime the two populations overlap
-% ($\beta\lesssim\tau^\ast$) and any debiasing depends sensitively on the exact
-% residual envelope; we make no optimality claim there. The deployed operator
-% applies the high-confidence slope globally, which is conservative and, in
-% practice, immaterial: with slope $\lambda_+$ the band triggers only at
-% $Z_t>\tau^\ast$, and at low confidence typical deviations are $O(1)$ standard
-% units, so the operator is essentially inactive precisely where the theorem is
-% silent.
-% \end{remark}
+The operator adds one elementwise pass and no forward or backward computation.
+Three implementation details are load-bearing: the inference-side
+log-probability must be the raw value recorded at the sampling step, with no
+temperature rescaling or renormalization applied afterwards; the weight must be
+detached, since $k_t$ is data rather than a function of $\theta$; and the floor
+must be applied to $1-p_t$ before multiplication by $\lambda$, not to the
+resulting band.

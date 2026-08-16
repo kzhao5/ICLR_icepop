@@ -13,6 +13,8 @@
 \usepackage{hyperref}
 \usepackage[nameinlink,capitalise,noabbrev]{cleveref}
 \usepackage{url}
+\usepackage{wrapfig}
+\usepackage{float}
 
 % -----------------------------------------------------------------------------
 % Theorem environments
@@ -49,6 +51,7 @@
 \crefname{section}{Section}{Sections}
 \Crefname{section}{Section}{Sections}
 
+
 % -----------------------------------------------------------------------------
 % Notation
 % -----------------------------------------------------------------------------
@@ -74,7 +77,8 @@
 \newcommand{\mstarmax}{m^{\star\star}}
 \newcommand{\argminop}{\operatorname*{arg\,min}}
 \newcommand{\sgn}{\operatorname{sign}}
-
+\newcommand{\Uset}{\mathcal{U}}
+\newcommand{\Mdown}{\mathcal{M}_{\downarrow}}
 \title{CIS: Calibrated Importance Sampling for\\
 Training--Inference Mismatch in LLM Reinforcement Learning}
 \author{Anonymous Authors}

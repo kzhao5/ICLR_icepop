@@ -8,7 +8,7 @@ We measured $k_{i,t}$ systematically on large-scale rollouts; experimental
 details are given in \Cref{sec:exp_measurement}. Write
 $p_{i,t}=\pi_{\mathrm{train}}(y_{i,t}\mid x,y_{i,<t};\theta_{\mathrm{old}})$
 for the training-side probability of the token that was actually sampled, and
-drop the index $i$ in what follows. Two facts emerge. First, the conditional
+drop the index $i$ in what follows. Two facts emerge (Figure~\ref{fig:two_channel}). First, the conditional
 law of $\log k_t$ forms a \emph{scale family},
 $\log k_t \,\big|\, p_t \overset{d}{=} c\,(1-p_t)\,Z$ with the law of $Z$ not
 depending on $p_t$, so that the shape is fixed and the width is proportional
@@ -18,6 +18,13 @@ not scale with $1-p_t$, and their magnitude is set by router logit gaps, by
 the storage resolution of the log-probabilities, and by version displacement
 between the scoring and the generation snapshot. These two facts give the
 following model.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/two_channel.pdf}
+\caption{The two channels of the mismatch, measured on the same tokens (trained MoE policy, 509k tokens). Blue circles: width of $\log k^{(0)}_t$ per uncertainty bin when both engines score the same parameter snapshot; it follows $c\,(1-p_t)$ (dashed) over three decades. Orange points and red squares: the displacement $B_t=\log k_t-\log k^{(0)}_t$ of the same tokens when the scoring snapshot is 29 steps ahead of the generating snapshot, shown for tokens whose displacement exceeds ten times the storage resolution, and its median per bin. The residual magnitude does not shrink with $1-p_t$ and is positive on $98$ to $100\%$ of tokens; the two channels overlap only at $1-p_t\gtrsim0.3$. The shaded band is the floor $\kappa$ of Section~\ref{sec:algorithm}; measurement details are in Section~\ref{sec:exp_measurement}.}
+\label{fig:two_channel}
+\end{figure}
 
 \begin{definition}[Two-channel model]
 \label{def:two_channel}

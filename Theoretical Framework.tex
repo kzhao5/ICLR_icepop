@@ -4,6 +4,15 @@
 \subsection{A two-channel model of the mismatch}
 \label{sec:two_channel}
 
+\begin{wrapfigure}{r}{0.5\textwidth}
+\vspace{-1.2\baselineskip}
+\centering
+\includegraphics[width=0.5\textwidth]{figures/two_channel.pdf}
+\vspace{-0.6\baselineskip}
+\caption{The two channels on the same tokens (trained MoE policy, 509k tokens). Blue: $|\log k^{(0)}_t|$ when both engines score the same snapshot, and its width per uncertainty bin, which follows $c\,(1-p_t)$ with $c=0.49$ over three decades. Orange: the displacement $|B_t|$ of the same tokens under a snapshot 29 steps ahead, for tokens displaced by more than ten times the storage resolution, and its per-bin median; it stays at $0.12$ to $0.15$ across $1-p_t\in[3\times10^{-4},0.15]$ and is positive on $98$ to $100\%$ of these tokens. The channels overlap only at $1-p_t\gtrsim0.3$; the shaded band is the floor $\kappa$ of Section~\ref{sec:algorithm}. Details in Section~\ref{sec:exp_measurement}.}
+\label{fig:two_channel}
+\vspace{-0.8\baselineskip}
+\end{wrapfigure}
 We measured $k_{i,t}$ systematically on large-scale rollouts; experimental
 details are given in \Cref{sec:exp_measurement}. Write
 $p_{i,t}=\pi_{\mathrm{train}}(y_{i,t}\mid x,y_{i,<t};\theta_{\mathrm{old}})$
@@ -19,12 +28,6 @@ the storage resolution of the log-probabilities, and by version displacement
 between the scoring and the generation snapshot. These two facts give the
 following model.
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{figures/two_channel.pdf}
-\caption{The two channels of the mismatch, measured on the same tokens (trained MoE policy, 509k tokens). Blue circles: width of $\log k^{(0)}_t$ per uncertainty bin when both engines score the same parameter snapshot; it follows $c\,(1-p_t)$ (dashed) over three decades. Orange points and red squares: the displacement $B_t=\log k_t-\log k^{(0)}_t$ of the same tokens when the scoring snapshot is 29 steps ahead of the generating snapshot, shown for tokens whose displacement exceeds ten times the storage resolution, and its median per bin. The residual magnitude does not shrink with $1-p_t$ and is positive on $98$ to $100\%$ of tokens; the two channels overlap only at $1-p_t\gtrsim0.3$. The shaded band is the floor $\kappa$ of Section~\ref{sec:algorithm}; measurement details are in Section~\ref{sec:exp_measurement}.}
-\label{fig:two_channel}
-\end{figure}
 
 \begin{definition}[Two-channel model]
 \label{def:two_channel}

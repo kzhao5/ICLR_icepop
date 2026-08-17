@@ -9,7 +9,7 @@
 \centering
 \includegraphics[width=0.5\textwidth]{figures/two_channel.pdf}
 \vspace{-0.6\baselineskip}
-\caption{The two channels on the same tokens (trained MoE policy, 509k tokens). Blue: $|\log k^{(0)}_t|$ when both engines score the same snapshot, and its width per uncertainty bin, which follows $c\,(1-p_t)$ with $c=0.49$ over three decades. Orange: the displacement $|B_t|$ of the same tokens under a snapshot 29 steps ahead, for tokens displaced by more than ten times the storage resolution, and its per-bin median; it stays at $0.12$ to $0.15$ across $1-p_t\in[3\times10^{-4},0.15]$ and is positive on $98$ to $100\%$ of these tokens. The channels overlap only at $1-p_t\gtrsim0.3$; the shaded band is the floor $\kappa$ of Section~\ref{sec:algorithm}. Details in Section~\ref{sec:exp_measurement}.}
+\caption{The two channels on the same tokens (trained MoE policy, 509k tokens). Blue: $|\log k_t|$ when both engines score the same snapshot, and its width per uncertainty bin, which follows $c\,(1-p_t)$ with $c=0.49$ over three decades. Orange: the displacement $|B_t|$ of the same tokens under a snapshot 29 steps ahead, for tokens displaced by more than ten times the storage resolution, and its per-bin median; it stays at $0.12$ to $0.15$ across $1-p_t\in[3\times10^{-4},0.15]$ and is positive on $98$ to $100\%$ of these tokens. The channels overlap only at $1-p_t\gtrsim0.3$; the shaded band is the floor $\kappa$ of Section~\ref{sec:algorithm}. Details in Section~\ref{sec:exp_measurement}.}
 \label{fig:two_channel}
 \vspace{-0.8\baselineskip}
 \end{wrapfigure}

@@ -1,3 +1,156 @@
+% \section{The CIS Framework}
+% \label{sec:cis}
+
+% \subsection{A two-channel model of the mismatch}
+% \label{sec:two_channel}
+
+% \begin{wrapfigure}{r}{0.5\textwidth}
+% \vspace{-1.2\baselineskip}
+% \centering
+% \includegraphics[width=0.5\textwidth]{figures/two_channel.pdf}
+% \vspace{-0.6\baselineskip}
+% \caption{The two channels on the same tokens (trained MoE policy, 509k tokens). Blue: $|\log k_t|$ when both engines score the same snapshot, and its width per uncertainty bin, which follows $c\,(1-p_t)$ with $c=0.49$ over three decades. Orange: the residual displacement $|B_t|$ on the same tokens, for tokens displaced by more than ten times the storage resolution, and its per-bin median; it stays at $0.12$ to $0.15$ across $1-p_t\in[3\times10^{-4},0.15]$ and is positive on $98$ to $100\%$ of these tokens. The channels overlap only at $1-p_t\gtrsim0.3$; the shaded band is the floor $\kappa$ of \Cref{sec:algorithm}. Details in \Cref{sec:exp_measurement}.}
+% \label{fig:two_channel}
+% \vspace{-0.8\baselineskip}
+% \end{wrapfigure}
+
+% We measured $k_{i,t}$ systematically on large-scale rollouts; experimental
+% details are given in \Cref{sec:exp_measurement}. Write
+% $p_{i,t}=\pi_{\mathrm{train}}(y_{i,t}\mid x,y_{i,<t};\theta_{\mathrm{old}})$
+% for the training-side probability of the token that was actually sampled, and
+% drop the index $i$ in what follows. Two facts emerge
+% (\Cref{fig:two_channel}). First, the conditional law of $\log k_t$ forms a
+% \emph{scale family}, $\log k_t \,\big|\, p_t \overset{d}{=} c\,(1-p_t)\,Z$ with
+% the law of $Z$ not depending on $p_t$, so that the shape is fixed and the width
+% is proportional to $1-p_t$, where $c>0$ is a constant of the model and engine
+% configuration. Second, a small fraction of tokens does not obey this law: their
+% deviations do not scale with $1-p_t$, and their magnitude is set by router
+% logit gaps and by the storage resolution of the log-probabilities. These two
+% facts give the following model.
+
+% \begin{definition}[Two-channel model]
+% \label{def:two_channel}
+% Conditionally on $p_t$, the observed log-ratio is generated as
+% \begin{equation}
+% \log k_t
+% \;=\;
+% c\,(1-p_t)\,Z_t
+% \;+\;
+% B_t ,
+% \label{eq:two_channel}
+% \end{equation}
+% where the scale component satisfies $Z_t\sim F_Z$ with $F_Z$ independent of
+% $p_t$, $\E[Z_t]=0$, $\E|Z_t|<\infty$, $\E[(Z_t)_{+}]>0$, and an upper tail
+% that is generalized Pareto with shape $\xi_+\in(0,1)$, no parametric form
+% being assumed for $F_Z$; and the residual component satisfies
+% $\Prob(B_t\ne0)\le\eps$ and $-B_{\min}\le B_t\le B_{\max}$ with
+% $B_{\min},B_{\max}$ independent of $p_t$ on the high-confidence range
+% $1-p_t\le\varphi_0$, the event $\{B_t\ne0\}$ being
+% independent of $(Z_t,p_t)$ while the value of $B_t$ within the envelope is
+% left unmodeled.
+% \end{definition}
+
+% \subsection{Estimand and robust risk}
+% \label{sec:robust_risk}
+
+% The change of measure $\E[k\,\ell']=\E_{y\sim\pi_{\mathrm{train}}}[\ell']$
+% holds exactly; the question is not whether it is valid but which functional of
+% the configuration we optimize. The two channels of \Cref{def:two_channel}
+% differ on precisely this point. The scale channel is determined by $(c,F_Z)$:
+% given a model and an engine configuration it is the same law on every batch.
+% The residual channel is determined by which tokens happen to fall on a routing
+% boundary or below the storage resolution, and is stable neither across batches
+% nor across configurations; carrying it in the target would make the estimand
+% move from batch to batch, and no threshold compiled from it would transfer. We
+% therefore take the gradient induced by the scale channel alone,
+% \begin{equation}
+% G_0:=\E\big[e^{\,c(1-p_t)Z_t}\,\ell'\big],
+% \label{eq:estimand}
+% \end{equation}
+% as the estimand; it coincides with $\E[k\,\ell']$ at $\eps=0$, and the residual
+% becomes a nuisance---absent from the target, present in every sample.
+
+% For a given sampling law $P$ the mean-squared error of the estimator is
+% $\mathcal E_0(\Mclass;P)=\E_P\norm{\widehat G_{\Mclass}-G_0}^{2}$. It cannot be
+% optimized directly: $B_t$ is characterized only at the level of sets and
+% carries no law to integrate against. We therefore optimize
+% \begin{equation}
+% \mathcal E(\Mclass)
+% :=
+% \sup_{P\in\Uset}
+% \left\{
+% \Big(\sum_p\norm{b_p(\Mclass)}\Big)^{2}
+% +\frac{1}{n}\E_P\big[\Mclass^{2}\norm{\ell'}^{2}\big]
+% \right\},
+% \label{eq:robust_risk}
+% \end{equation}
+% where
+% $b_p(\Mclass)=\E\big[\big(\Mclass(k_t)-e^{\,c(1-p_t)Z_t}\big)\ell'_t\mid p_t=p\big]\,
+% \Prob(p_t=p)$
+% is the contribution of confidence level $p$ to the bias, and
+% $\Uset=\big\{P:\ \log k_t=c(1-p_t)Z_t+B_t,\ Z_t\sim F_Z,\
+% \Prob(B_t\ne0)\le\eps,\ -B_{\min}\le B_t\le B_{\max}\big\}$.
+
+% \begin{theorem}[CIS operator, informal]
+% \label{thm:cis_informal}
+% Under \Cref{def:two_channel}, and when the displacement of the residual channel
+% in standardized coordinates is sufficiently large, the minimizer of the robust
+% risk over the shrinkage class is
+% \begin{equation}
+% \log\Mclass^{\star}(k_t,p_t)
+% =
+% \argminop_{\Mclass\in\Mdown}\mathcal E(\Mclass)
+% =
+% \min\Big(\log k_t,\;\lambda\,(1-p_t)\Big),
+% \label{eq:cis_operator}
+% \end{equation}
+% where the slope is $\lambda=c\,\tau^{\star}$ and the threshold $\tau^{\star}$
+% is uniquely determined by $F_Z$, the residual occurrence rate $\eps$, and the
+% sample size $n$.
+% \end{theorem}
+
+% \subsection{The deployed algorithm}
+% \label{sec:algorithm}
+
+% \Cref{thm:cis_informal} gives a one-sided bound whose width scales with
+% $1-p_t$. One correction is needed at the edge of the model's identifiable
+% range: as $p_t\to1$ the observed width of $\log k_t$ saturates at the storage
+% resolution of the log-probabilities rather than following $c(1-p_t)$, so an
+% unfloored band would truncate quantization noise rather than mismatch. We
+% therefore floor the scale variable at $\kappa$, which gives \Cref{alg:cis}. The
+% two hyperparameters admit measured defaults rather than a search:
+% \Cref{thm:cis_informal} compiles $\lambda=c\,\tau^{\star}$, and $\kappa$ is the
+% storage resolution of the log-probabilities.
+
+% \begin{wrapfigure}{r}{0.5\textwidth}
+% \vspace{-\baselineskip}
+% \begin{minipage}{0.5\textwidth}
+% \begin{algorithm}[H]
+% \caption{Calibrated importance sampling (CIS)}
+% \label{alg:cis}
+% \begin{algorithmic}[1]
+% \Require $\ell^{\mathrm{train}}_j$, $\ell^{\mathrm{infer}}_j$, $\ell'_j$ for
+% the $n$ tokens of the batch; $\lambda$; $\kappa$
+% \For{$j=1,\dots,n$}
+%   \State $\log k_j\gets\ell^{\mathrm{train}}_j-\ell^{\mathrm{infer}}_j$,\quad
+%   $p_j\gets\exp(\ell^{\mathrm{train}}_j)$
+%   \State $w_j\gets\exp\big(\min\{\log k_j,\;
+%   \lambda\max(1-p_j,\kappa)\}\big)$
+% \EndFor
+% \State \Return $\widehat G_{\mathrm{CIS}}
+% =\frac{1}{n}\sum_{j=1}^{n}\operatorname{stopgrad}(w_j)\,\ell'_j$
+% \end{algorithmic}
+% \end{algorithm}
+% \end{minipage}
+% \end{wrapfigure}
+
+% The operator adds one elementwise pass and no forward or backward computation.
+% Three implementation details are load-bearing: the inference-side
+% log-probability must be the raw value recorded at the sampling step, with no
+% temperature rescaling or renormalization applied afterwards; the weight must be
+% detached, since $k_t$ is data rather than a function of $\theta$; and the floor
+% must be applied to $1-p_t$ before multiplication by $\lambda$, not to the
+% resulting band.
 \section{The CIS Framework}
 \label{sec:cis}
 
@@ -9,25 +162,24 @@
 \centering
 \includegraphics[width=0.5\textwidth]{figures/two_channel.pdf}
 \vspace{-0.6\baselineskip}
-\caption{The two channels on the same tokens (trained MoE policy, 509k tokens). Blue: $|\log k_t|$ when both engines score the same snapshot, and its width per uncertainty bin, which follows $c\,(1-p_t)$ with $c=0.49$ over three decades. Orange: the displacement $|B_t|$ of the same tokens under a snapshot 29 steps ahead, for tokens displaced by more than ten times the storage resolution, and its per-bin median; it stays at $0.12$ to $0.15$ across $1-p_t\in[3\times10^{-4},0.15]$ and is positive on $98$ to $100\%$ of these tokens. The channels overlap only at $1-p_t\gtrsim0.3$; the shaded band is the floor $\kappa$ of Section~\ref{sec:algorithm}. Details in Section~\ref{sec:exp_measurement}.}
+\caption{Two channels on the same tokens (trained MoE, 509k tokens): the scale channel $|\log k_t|$ (blue) has width $\propto 1-p_t$; the residual $|B_t|$ (orange) does not scale and is almost entirely positive. Shaded: the floor $\kappa$. Details in \Cref{sec:exp_measurement}.}
 \label{fig:two_channel}
 \vspace{-0.8\baselineskip}
 \end{wrapfigure}
+
 We measured $k_{i,t}$ systematically on large-scale rollouts; experimental
 details are given in \Cref{sec:exp_measurement}. Write
 $p_{i,t}=\pi_{\mathrm{train}}(y_{i,t}\mid x,y_{i,<t};\theta_{\mathrm{old}})$
 for the training-side probability of the token that was actually sampled, and
-drop the index $i$ in what follows. Two facts emerge (Figure~\ref{fig:two_channel}). First, the conditional
-law of $\log k_t$ forms a \emph{scale family},
-$\log k_t \,\big|\, p_t \overset{d}{=} c\,(1-p_t)\,Z$ with the law of $Z$ not
-depending on $p_t$, so that the shape is fixed and the width is proportional
-to $1-p_t$, where $c>0$ is a constant of the model and engine configuration.
-Second, a small fraction of tokens does not obey this law: their deviations do
-not scale with $1-p_t$, and their magnitude is set by router logit gaps, by
-the storage resolution of the log-probabilities, and by version displacement
-between the scoring and the generation snapshot. These two facts give the
-following model.
-
+drop the index $i$ in what follows. Two facts emerge
+(\Cref{fig:two_channel}). First, the conditional law of $\log k_t$ forms a
+\emph{scale family}, $\log k_t \,\big|\, p_t \overset{d}{=} c\,(1-p_t)\,Z$ with
+the law of $Z$ not depending on $p_t$, so that the shape is fixed and the width
+is proportional to $1-p_t$, where $c>0$ is a constant of the model and engine
+configuration. Second, a small fraction of tokens does not obey this law: their
+deviations do not scale with $1-p_t$, and their magnitude is set by router
+logit gaps and by the storage resolution of the log-probabilities. These two
+facts give the following model.
 
 \begin{definition}[Two-channel model]
 \label{def:two_channel}
@@ -40,67 +192,113 @@ c\,(1-p_t)\,Z_t
 B_t ,
 \label{eq:two_channel}
 \end{equation}
-where the scale component satisfies $Z_t\sim F_Z$ with $F_Z$ independent of
-$p_t$, $\E[Z_t]=0$, $\E[Z_t^{2}]<\infty$, $\E[(Z_t)_{+}]>0$, and an upper tail
-that is generalized Pareto with shape $\xi_+\in(0,1)$, no parametric form
-being assumed for $F_Z$; and the residual component satisfies
-$\Prob(B_t\ne0)\le\eps$ and $-B_{\min}\le B_t\le B_{\max}$ with
-$B_{\min},B_{\max}$ independent of $p_t$, the event $\{B_t\ne0\}$ being
-independent of $(Z_t,p_t)$ while the value of $B_t$ within the envelope is
-left unmodeled.
+where the two components satisfy the following.
+
+\emph{(i) Scale component.} $Z_t\sim F_Z$ with $F_Z$ independent of $p_t$, and
+\begin{equation}
+\E[Z_t]=0,
+\qquad
+\E\abs{Z_t}<\infty,
+\qquad
+\E[(Z_t)_+]>0,
+\qquad
+z_{\min}(p_t)\le Z_t\le z_{\max}(p_t),
+\label{eq:scale_conditions}
+\end{equation}
+the endpoints of the support being induced by the constraint
+$p_t\le k_t\le 1/\pi_{\mathrm{infer}}(y_t)$. Beyond an upper tail that is
+generalized Pareto with shape $\xi_+\in(0,1)$ within that support, no
+parametric form is assumed for $F_Z$.
+
+\emph{(ii) Residual component.} $\Prob(B_t\ne0)\le\eps$, the event
+$\{B_t\ne0\}$ is independent of $(Z_t,p_t)$, and
+\begin{equation}
+-B_{\min}\le B_t\le B_{\max},
+\qquad
+B_{\min},B_{\max}\ \text{independent of}\ p_t;
+\qquad
+B_t\ge0
+\ \ \text{when}\ \
+1-p_t\le\varphi_0 .
+\label{eq:residual_conditions}
+\end{equation}
+The value of $B_t$ within the envelope is left unmodeled.
 \end{definition}
-\subsection{Robust risk and the optimal operator}
+
+\subsection{Estimand and robust risk}
 \label{sec:robust_risk}
 
-By \Cref{def:two_channel}, $B_t$ is characterized only at the level of sets and
-carries no distribution, so an expectation over it has no measure to be taken
-against. We therefore replace the criterion of \Cref{sec:prelim_estimation} by
-a \emph{robust risk},
+The per-step change of measure
+$\E[k_t\,\ell'_t\mid h_t]=\E_{y_t\sim\pi_{\mathrm{train}}}[\ell'_t\mid h_t]$
+holds exactly at every prefix $h_t$; the question is not whether it is valid
+but which functional of the configuration we optimize. The two channels of
+\Cref{def:two_channel} differ on precisely this point. The scale channel is
+determined by $(c,F_Z)$: given a model and an engine configuration it is the
+same law on every batch. The residual channel is determined by which tokens
+happen to fall on a routing boundary or below the storage resolution, and is
+stable neither across batches nor across configurations; carrying it in the
+target would make the estimand move from batch to batch, and no threshold
+compiled from it would transfer. We therefore take the gradient induced by the
+scale channel alone,
+\begin{equation}
+G_0:=\E\big[e^{\,c(1-p_t)Z_t}\,\ell'\big],
+\label{eq:estimand}
+\end{equation}
+as the estimand; it coincides with $\E[k\,\ell']$ at $\eps=0$, and the residual
+becomes a nuisance---absent from the target, present in every sample.
+
+For a given sampling law $P$ the mean-squared error of the estimator is
+$\mathcal E_0(\Mclass;P)=\E_P\norm{\widehat G_{\Mclass}-G_0}^{2}$. It cannot be
+optimized directly: $B_t$ is characterized only at the level of sets and
+carries no law to integrate against. We therefore optimize
 \begin{equation}
 \mathcal E(\Mclass)
 :=
 \sup_{P\in\Uset}
 \left\{
-\norm{G_{\Mclass}-G_0}^{2}
-+\frac{1}{n}\E\big[\Mclass^{2}\norm{\ell'}^{2}\big]
+\Big(\sum_p\norm{b_p(\Mclass)}\Big)^{2}
++\frac{1}{n}\E_P\big[\Mclass^{2}\norm{\ell'}^{2}\big]
 \right\},
 \label{eq:robust_risk}
 \end{equation}
 where
+$b_p(\Mclass)=\E\big[\big(\Mclass(k_t)-e^{\,c(1-p_t)Z_t}\big)\ell'_t\mid p_t=p\big]\,
+\Prob(p_t=p)$
+is the contribution of confidence level $p$ to the bias, and
 $\Uset=\big\{P:\ \log k_t=c(1-p_t)Z_t+B_t,\ Z_t\sim F_Z,\
-\Prob(B_t\ne0)\le\eps,\ -B_{\min}\le B_t\le B_{\max}\big\}$
-and $G_0=\E\big[e^{\,c(1-p_t)Z_t}\ell'\big]$ is the gradient induced by the
-scale channel alone.
+\Prob(B_t\ne0)\le\eps,\ -B_{\min}\le B_t\le B_{\max}\big\}$.
 
 \begin{theorem}[CIS operator, informal]
 \label{thm:cis_informal}
 Under \Cref{def:two_channel}, and when the displacement of the residual channel
-in standardized coordinates is sufficiently large, the minimizer of the robust
-risk over the shrinkage class is
+in standardized coordinates is sufficiently large, to first order on the log
+scale the minimizer of the robust risk over the shrinkage class is
 \begin{equation}
 \log\Mclass^{\star}(k_t,p_t)
 =
 \argminop_{\Mclass\in\Mdown}\mathcal E(\Mclass)
 =
-\min\Big(\log k_t,\;\lambda_+\,(1-p_t)\Big),
+\min\Big(\log k_t,\;\lambda\,(1-p_t)\Big),
 \label{eq:cis_operator}
 \end{equation}
-where the slope is $\lambda_+=c\,\tau^{\star}$ and the threshold $\tau^{\star}$
+where the slope is $\lambda=c\,\tau^{\star}$ and the threshold $\tau^{\star}$
 is uniquely determined by $F_Z$, the residual occurrence rate $\eps$, and the
 sample size $n$.
 \end{theorem}
+
 \subsection{The deployed algorithm}
 \label{sec:algorithm}
 
 \Cref{thm:cis_informal} gives a one-sided bound whose width scales with
-$1-p_t$. One engineering correction is needed: as $p_t\to1$ the observed width
-of $\log k_t$ saturates at the storage resolution of the log-probabilities
-rather than following $c(1-p_t)$, so an unfloored band would truncate
-quantization noise rather than mismatch. We therefore floor the scale variable
-at $\kappa$, which gives \Cref{alg:cis}. The two hyperparameters admit measured
-defaults rather than a search: \Cref{thm:cis_informal} compiles
-$\lambda=c\,\tau^{\star}$, and $\kappa$ is the storage resolution of the
-log-probabilities.
+$1-p_t$. One correction is needed once $c(1-p_t)$ falls below the storage
+resolution of the log-probabilities: there the observed width of $\log k_t$
+saturates at that resolution rather than following $c(1-p_t)$, the two
+components of \eqref{eq:two_channel} cannot be separated in the data, and an
+unfloored band would truncate quantization noise rather than mismatch. We
+therefore floor the scale variable at $\kappa$, which gives \Cref{alg:cis}.
+The two hyperparameters admit measured defaults rather than a search:
+\Cref{thm:cis_informal} compiles $\lambda=c\,\tau^{\star}$, and $\kappa$ is the
+storage resolution of the log-probabilities.
 
 \begin{wrapfigure}{r}{0.5\textwidth}
 \vspace{-\baselineskip}

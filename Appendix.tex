@@ -1,4 +1,826 @@
 \appendix
+% ============================================================
+% Appendix: proofs
+% Requires the macros of the main file:
+%   \E \Prob \norm \abs \Mclass \Mdown \Uset \eps \argminop
+% ============================================================
+
+% ============================================================
+% Appendix: Proofs for the CIS Framework
+% Requires macros from the main text:
+% \E \Prob \norm \abs \Mclass \Mdown \Uset \eps
+% ============================================================
+
+% ============================================================
+% Appendix: Proofs for the CIS Framework
+% Requires macros from the main text:
+%   \E \Prob \norm \abs \Mclass \Mdown \Uset \eps \argminop
+% ============================================================
+
+\section{Proofs for the CIS Framework}
+\label{app:cis_proofs}
+
+% ============================================================
+\subsection{Auxiliary Lemmas}
+\label{app:cis_lemmas}
+
+Throughout the appendix we fix a confidence level $p$ in the high-confidence
+range $1-p\le\varphi_0$ of \Cref{def:two_channel}, and write $F_Z$ for the
+law of $Z$,
+\begin{equation}
+\bar F_Z(\tau):=\Prob(Z>\tau),
+\qquad
+H(\tau):=\E[(Z-\tau)_+],
+\qquad
+g(\tau):=\E[\min(Z,\tau)],
+\label{eq:app_notation}
+\end{equation}
+and, for the two residual envelopes,
+$\beta_+(p):=B_{\max}/\big(c(1-p)\big)$ and
+$\beta_-(p):=B_{\min}/\big(c(1-p)\big)$. On this range
+\Cref{def:two_channel} gives $B_t\ge0$, hence $\beta_-(p)=0$. For an observed
+ratio $k$ the standardized coordinate is $U:=\log k/\big(c(1-p)\big)$, so that
+$U=Z+B/\big(c(1-p)\big)$ under \Cref{def:two_channel}. Every
+$\Mclass\in\Mdown$ is represented by a standardized operator $\psi$ through
+$\log\Mclass(k,p)=c(1-p)\psi(U)$; since $\Mclass(k,p)\le k$ is equivalent to
+$c(1-p)\psi(U)\le c(1-p)U$, the shrinkage constraint reads
+\begin{equation}
+\psi(u)\le u .
+\label{eq:app_no_lift}
+\end{equation}
+For the scale channel we write $C(\psi):=\E[Z-\psi(Z)]$ for the truncation
+deficit, $\Sigma(\psi):=\sup_u\psi(u)$ for the upper envelope, and
+$Q(\psi):=\E[\psi(Z)^2]$ for the second moment. We also record the support
+constraint of \Cref{def:two_channel} in standardized form: from
+$p_t\le k_t\le 1/\pi_{\mathrm{infer}}(y_t)$,
+\begin{equation}
+z_{\min}(p):=\frac{\log p}{c(1-p)}
+\;\le\;Z\;\le\;
+z_{\max}(p):=\frac{\log\big(1/\pi_{\mathrm{infer}}\big)}{c(1-p)},
+\qquad
+\Delta(p):=c(1-p)\max\big\{\abs{z_{\min}(p)},\abs{z_{\max}(p)}\big\},
+\label{eq:support_constraint}
+\end{equation}
+both endpoints being finite because the vocabulary is finite and the
+log-probabilities are stored at finite precision. In particular
+$\E[e^{c(1-p)Z}]<\infty$, so the estimand \eqref{eq:estimand} is well defined
+and consistent with the per-step calibration identity $\E[k_t\mid h_t]=1$
+verified in \Cref{sec:exp_measurement}; the generalized-Pareto form of the
+upper tail describes the shape of $F_Z$ within $[z_{\min},z_{\max}]$ and is
+not an assertion about an unbounded support.
+
+% ------------------------------------------------------------
+\begin{lemma}[Payload scale]
+\label{lem:payload_scale}
+Let $\pi=\operatorname{softmax}(z)$, $p=\pi_y$, and let $J:=\nabla_\theta z$
+denote the Jacobian of the logits with respect to the parameters. Then
+\begin{equation}
+(1-p)\;\le\;\norm{\nabla_z\log\pi_y}\;\le\;\sqrt2\,(1-p),
+\qquad\text{and consequently}\qquad
+\norm{\nabla_\theta\log\pi_y}\;\le\;\sqrt2\,\sigma_{\max}(J)\,(1-p).
+\label{eq:payload_bound}
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+Writing $\nabla_z\log\pi_y=e_y-\pi$,
+\begin{equation}
+\norm{\nabla_z\log\pi_y}^{2}
+\overset{(a)}{=}
+(1-p)^{2}+\sum_{j\ne y}\pi_j^{2}
+\overset{(b)}{\le}
+(1-p)^{2}+\Big(\sum_{j\ne y}\pi_j\Big)^{2}
+\overset{(c)}{=}
+2(1-p)^{2},
+\label{eq:score_chain}
+\end{equation}
+where (a) expands the squared norm, (b) uses $\pi_j\ge0$, and (c) uses
+$\sum_{j\ne y}\pi_j=1-p$. Dropping the nonnegative sum in (a) gives
+$\norm{\nabla_z\log\pi_y}^{2}\ge(1-p)^{2}$, and taking square roots in both
+bounds gives the first claim; both ends are attained, the lower as the
+off-target mass spreads over many tokens, the upper as it concentrates on
+one. For the second claim, the chain rule gives
+$\nabla_\theta\log\pi_y=J^{\top}\nabla_z\log\pi_y$, so
+$\norm{\nabla_\theta\log\pi_y}\le\sigma_{\max}(J)\norm{\nabla_z\log\pi_y}$,
+and the first claim bounds the right-hand side. No condition on $J$ beyond
+$\sigma_{\max}(J)<\infty$ is used.
+\end{proof}
+
+\begin{remark}[The matching lower bound]
+\label{rem:payload_lower}
+A lower bound of the same order,
+$\norm{\nabla_\theta\log\pi_y}\ge\gamma\,(1-p)$, holds under a local
+non-degeneracy condition on the logit Jacobian, $\sigma_{\min}(J)\ge\gamma>0$
+\citep{profit2026}; a $(1-p)$ modulation of the per-token gradient magnitude
+has also been reported directly for the GRPO objective \citep{rlvr2026}. We do
+not import that condition: the upper bound in \eqref{eq:payload_bound} is
+unconditional, and the lower bound is used only in
+\Cref{prop:constant_threshold}.
+\end{remark}
+
+\begin{assumption}[Payload scale]
+\label{ass:payload}
+There exist constants $0<a\le b<\infty$, independent of $p$, such that
+$a\,(1-p_t)\le\norm{\ell'_t}\le b\,(1-p_t)$.
+\end{assumption}
+
+The upper half follows from \Cref{lem:payload_scale} together with the
+boundedness of the group-normalized advantage and of the PPO clip factor,
+which are absorbed into $b$; the lower half is supported by
+\Cref{rem:payload_lower}. Only the ratio $b/a$ enters what follows, as a
+bounded multiplicative factor common to every candidate operator within a
+confidence level.
+
+% ------------------------------------------------------------
+\begin{lemma}[Deficit--threshold dictionary]
+\label{lem:dictionary}
+For every $\tau$ one has $g(\tau)=-H(\tau)$, and $g'(\tau)=\bar F_Z(\tau)\ge0$
+at every continuity point; thus $g$ is continuous, nondecreasing, and strictly
+increasing wherever $\bar F_Z(\tau)>0$. Consequently, for every
+$0<C<\E[Z_+]$ there is a unique finite $\tau_C$ with $g(\tau_C)=-C$.
+\end{lemma}
+
+\begin{proof}
+Using $\min(Z,\tau)=Z-(Z-\tau)_+$ pointwise,
+\begin{equation}
+g(\tau)
+\overset{(a)}{=}
+\E[Z]-\E[(Z-\tau)_+]
+\overset{(b)}{=}
+-H(\tau),
+\qquad
+g'(\tau)
+\overset{(c)}{=}
+\E\big[\mathbf 1\{Z>\tau\}\big]
+=
+\bar F_Z(\tau),
+\label{eq:dictionary_chain}
+\end{equation}
+where (a) takes expectations in the pointwise identity, (b) uses $\E[Z]=0$,
+and (c) differentiates under the expectation at a continuity point. Since
+$g(0)=-\E[Z_+]<0$ and $g(\tau)\to\E[Z]=0$ as $\tau\to\infty$, any level $-C$
+with $0<C<\E[Z_+]$ lies strictly between these limits; continuity gives
+existence of $\tau_C$ and strict monotonicity on the nonempty right tail gives
+uniqueness.
+\end{proof}
+
+% ------------------------------------------------------------
+\begin{lemma}[Minimal envelope at fixed deficit]
+\label{lem:min_envelope}
+Fix $0<C<\E[Z_+]$ and let
+$\Psi_C:=\{\psi:\ \psi(z)\le z,\ \E[\psi(Z)]=-C\}$. Then
+$\inf_{\psi\in\Psi_C}\Sigma(\psi)=\tau_C$, attained by
+$\psi_C^{\star}(z)=\min(z,\tau_C)$.
+\end{lemma}
+
+\begin{proof}
+The function $\psi_C^{\star}$ is feasible, since $\min(z,\tau_C)\le z$ and
+$\E[\psi_C^{\star}(Z)]=g(\tau_C)=-C$ by \Cref{lem:dictionary}, and its
+envelope is $\Sigma(\psi_C^{\star})=\tau_C$. Suppose some
+$\widetilde\psi\in\Psi_C$ had $S:=\Sigma(\widetilde\psi)<\tau_C$. Then
+\begin{equation}
+-C
+\overset{(a)}{=}
+\E[\widetilde\psi(Z)]
+\overset{(b)}{\le}
+\E[\min(Z,S)]
+\overset{(c)}{=}
+g(S)
+\overset{(d)}{<}
+g(\tau_C)
+=
+-C,
+\label{eq:min_envelope_chain}
+\end{equation}
+where (a) is feasibility, (b) uses the pointwise bound
+$\widetilde\psi(z)\le\min(z,S)$ implied by $\widetilde\psi\le z$ and
+$\widetilde\psi\le S$, (c) is the definition of $g$, and (d) is strict
+monotonicity of $g$ on the nonempty right tail. The contradiction proves the
+claim.
+\end{proof}
+
+For the clipping family $\psi_\tau(z)=\min(z,\tau)$, \Cref{lem:dictionary}
+gives $C(\psi_\tau)=\E[Z-\min(Z,\tau)]=\E[(Z-\tau)_+]=H(\tau)$ and
+$\Sigma(\psi_\tau)=\tau$.
+
+% ------------------------------------------------------------
+\begin{lemma}[Weight-domain second moment under a finite envelope]
+\label{lem:finite_second_moment}
+Write $Q_w(\psi):=\E\big[e^{2c(1-p)\psi(Z)}\big]$ for the second moment of the
+weight actually applied to the payload. If $\psi(u)\le\min(u,\Sigma)$ with
+$\Sigma<\infty$, then
+\begin{equation}
+Q_w(\psi)\;\le\;\max\Big\{e^{2c(1-p)z_{\min}(p)},\ e^{2c(1-p)\Sigma}\Big\},
+\label{eq:weight_moment}
+\end{equation}
+which does not depend on the upper endpoint $z_{\max}(p)$. For the exact ratio
+$\psi(u)=u$ the same quantity is $\E[e^{2c(1-p)Z}]$, which grows exponentially
+in $z_{\max}(p)$ and is dominated by the exceedance mass of the
+generalized-Pareto upper tail.
+\end{lemma}
+
+\begin{proof}
+Under \eqref{eq:support_constraint} and $\psi\le\Sigma$ the exponent
+$2c(1-p)\psi(Z)$ lies between $2c(1-p)\psi(z_{\min}(p))$ and
+$2c(1-p)\Sigma$, and $\psi(z)\le z$ gives
+$\psi(z_{\min}(p))\le z_{\min}(p)$; monotonicity of the exponential yields
+\eqref{eq:weight_moment}. For $\psi(u)=u$ the exponent attains
+$2c(1-p)z_{\max}(p)$ on the upper end of the support, and the contribution of
+the tail above any threshold $\tau_0$ is
+$\E[e^{2c(1-p)Z}\mathbf 1\{Z>\tau_0\}]$, which increases with $z_{\max}(p)$
+without bound as the support is enlarged.
+\end{proof}
+
+The point of \Cref{lem:finite_second_moment} is not that a moment is finite
+--- under the bounded support of \Cref{def:two_channel} every moment is ---
+but that truncation decouples the variance of the estimator from the upper
+endpoint of the support, whereas the variance of the exact ratio is governed
+by it. This is a reason for truncating that is already present at $\eps=0$ and
+is independent of the residual channel, and it does not rely on the numerical
+value of $\xi_+$.
+
+% ------------------------------------------------------------
+\begin{lemma}[Positive-residual reachability]
+\label{lem:positive_reachability}
+For $\psi_\tau(z)=\min(z,\tau)$,
+\begin{equation}
+\sup_{0\le B(\cdot)\le B_{\max}}
+\E\left[\psi_\tau\Big(Z+\tfrac{B(Z)}{c(1-p)}\Big)\right]
+=
+\E\big[\min(Z+\beta_+(p),\tau)\big]
+=
+\tau-\eta_+(\tau,p),
+\label{eq:positive_reachability}
+\end{equation}
+where $\eta_+(\tau,p):=\E[(\tau-\beta_+(p)-Z)_+]$, and
+$\eta_+(\tau,p)\to0$ as $\beta_+(p)\to\infty$.
+\end{lemma}
+
+\begin{proof}
+Since $\psi_\tau$ is nondecreasing, the pointwise supremum is attained at the
+largest admissible displacement, giving
+$\sup_B\psi_\tau\big(z+B(z)/(c(1-p))\big)=\min(z+\beta_+(p),\tau)$; taking
+expectations gives the first equality. For the second,
+\begin{equation}
+\tau-\E\big[\min(Z+\beta_+(p),\tau)\big]
+\overset{(a)}{=}
+\E\big[(\tau-\beta_+(p)-Z)_+\big]
+=
+\eta_+(\tau,p),
+\qquad
+(\tau-\beta_+(p)-Z)_+
+\overset{(b)}{\le}
+(\tau-Z)_+,
+\label{eq:positive_chain}
+\end{equation}
+where (a) is the pointwise identity
+$\tau-\min(a,\tau)=(\tau-a)_+$ with $a=Z+\beta_+(p)$, and (b) holds for every
+$\beta_+(p)\ge0$. The integrand converges to zero almost surely as
+$\beta_+(p)\to\infty$ and is dominated by $(\tau-Z)_+$, which is integrable
+because $\E\abs{Z}<\infty$ by \Cref{def:two_channel}; dominated convergence
+gives the limit.
+\end{proof}
+
+% ------------------------------------------------------------
+\begin{lemma}[Finite negative-residual contribution]
+\label{lem:negative_residual}
+Let $\psi_\tau(z)=\min(z,\tau)$ and define the magnitude of the worst
+standardized negative-channel bias by
+\begin{equation}
+L_-(\tau,p)
+:=
+-\inf_{-\beta_-(p)\le b\le0}\E\big[\psi_\tau(Z+b)-Z\big].
+\label{eq:L_minus_def}
+\end{equation}
+Then $L_-(\tau,p)=\beta_-(p)+\E[(Z-\beta_-(p)-\tau)_+]$, which is finite and
+positive, and at every continuity point
+$\partial_\tau L_-(\tau,p)=-\Prob\big(Z>\tau+\beta_-(p)\big)\le0$. Moreover,
+for every $-B_{\min}\le B\le0$ the exact weight error obeys
+$0\le e^{c(1-p)Z}-e^{c(1-p)\psi_\tau(U)}\le e^{c(1-p)Z}$.
+\end{lemma}
+
+\begin{proof}
+Monotonicity of $\psi_\tau$ places the infimum at $b=-\beta_-(p)$, and with
+$\min(a,\tau)=a-(a-\tau)_+$ applied to $a=Z-\beta_-(p)$,
+\begin{equation}
+\E\big[\psi_\tau(Z-\beta_-(p))-Z\big]
+\overset{(a)}{=}
+\E\big[Z-\beta_-(p)-(Z-\beta_-(p)-\tau)_+-Z\big]
+\overset{(b)}{=}
+-\beta_-(p)-\E\big[(Z-\beta_-(p)-\tau)_+\big],
+\label{eq:negative_chain}
+\end{equation}
+where (a) substitutes the identity and (b) evaluates the expectation;
+multiplying by $-1$ gives the stated expression for $L_-$. It is finite
+because $\E[(Z-\beta_-(p)-\tau)_+]\le\E[Z_+]<\infty$, and differentiating the
+excess function gives
+$\partial_\tau L_-(\tau,p)=-\Prob(Z>\tau+\beta_-(p))\le0$. Finally, for
+$B\le0$ one has $U\le Z$ and hence $\psi_\tau(U)\le U\le Z$, so
+$0<e^{c(1-p)\psi_\tau(U)}\le e^{c(1-p)Z}$, which is the stated two-sided
+bound.
+\end{proof}
+
+\Cref{lem:negative_residual} is stated for the general case and is used on the
+low-confidence range $1-p>\varphi_0$. On the range to which
+\Cref{thm:cis_formal} is applied, \Cref{def:two_channel} gives $B_t\ge0$ and
+hence $\beta_-(p)=0$, so $L_-(\tau,p)\equiv0$ and the negative channel does
+not contribute.
+
+% ------------------------------------------------------------
+\begin{lemma}[Worst-case signed leading bias]
+\label{lem:worst_signed_bias}
+Let $\alpha=\Prob(B_t\ne0)\in[0,\eps]$ and, for
+$\psi_\tau(z)=\min(z,\tau)$, define
+\begin{equation}
+D_+(\tau):=\eps\tau-(1-\eps)H(\tau),
+\qquad
+D_-(\tau,p):=(1-\eps)H(\tau)+\eps L_-(\tau,p).
+\label{eq:D_pm}
+\end{equation}
+Then, in the regime $\eta_+(\tau,p)\to0$, the worst-case leading squared bias
+over the signed residual envelope is
+$\max\{H(\tau)^{2},D_+(\tau)^{2},D_-(\tau,p)^{2}\}$, with
+$D_-'(\tau,p)=-(1-\eps)\bar F_Z(\tau)-\eps\Prob(Z>\tau+\beta_-(p))\le0$. On
+the high-confidence range of \Cref{def:two_channel}, where $\beta_-(p)=0$ and
+therefore $D_-(\tau,p)=(1-\eps)H(\tau)\le H(\tau)$, this reduces to
+\begin{equation}
+R(\tau)
+=
+\max\Big\{H(\tau)^{2},\ D_+(\tau)^{2}\Big\},
+\label{eq:signed_two_branch}
+\end{equation}
+which does not depend on $p$.
+\end{lemma}
+
+\begin{proof}
+With no residual, $\E[\psi_\tau(Z)-Z]=-H(\tau)$. With a positive residual,
+\Cref{lem:positive_reachability} gives
+$\sup_B\E[\psi_\tau(U)-Z]=\tau+o(1)$; with a negative one,
+\Cref{lem:negative_residual} gives $\inf_B\E[\psi_\tau(U)-Z]=-L_-(\tau,p)$.
+Hence at rate $\alpha$ the two signed mean errors are
+\begin{equation}
+b_+(\alpha,\tau)
+\overset{(a)}{=}
+-(1-\alpha)H(\tau)+\alpha\tau+o(1),
+\qquad
+b_-(\alpha,\tau,p)
+\overset{(b)}{=}
+-(1-\alpha)H(\tau)-\alpha L_-(\tau,p),
+\label{eq:signed_bias_chain}
+\end{equation}
+where (a) and (b) mix the clean component with the corresponding endpoint of
+the residual channel. Both are affine in $\alpha$, so both squares are convex
+in $\alpha$ and attain their maxima over $[0,\eps]$ at an endpoint; evaluating
+at $\alpha=0$ and $\alpha=\eps$ gives $\max\{H^{2},D_+^{2}\}$ and
+$\max\{H^{2},D_-^{2}\}$ respectively. The conditional distribution of a
+nonzero residual is supported in $[-B_{\min},B_{\max}]$ and the squared bias
+is convex in its conditional mean, so its maximum over that interval is
+attained at one of the two endpoints; combining the clean, positive, and
+negative endpoints gives the three-branch form. Differentiating $D_-$ and
+using $H'=-\bar F_Z$ together with
+$\partial_\tau L_-=-\Prob(Z>\tau+\beta_-(p))$ gives the stated derivative.
+When $\beta_-(p)=0$ we have $L_-\equiv0$, so
+$D_-(\tau,p)=(1-\eps)H(\tau)$, which is dominated by the first branch, and
+\eqref{eq:signed_two_branch} follows.
+\end{proof}
+
+% ------------------------------------------------------------
+\begin{lemma}[Second-moment minimizer at fixed deficit]
+\label{lem:second_moment}
+Fix $0<C<\E[Z_+]$. Among all $\psi$ with $\psi(z)\le z$ and
+$\E[\psi(Z)]=-C$, the unique minimizer of $Q(\psi)=\E[\psi(Z)^2]$, up to
+$F_Z$-null sets, is $\psi^{\star}(z)=\min(z,\tau_C)$ with $g(\tau_C)=-C$.
+\end{lemma}
+
+\begin{proof}
+The objective is finite on the feasible set because $Z$ is bounded by
+\eqref{eq:support_constraint}. The Lagrangian is
+$\mathcal L(\psi,\mu)=\E[\psi(Z)^2]+2\mu\big(\E[\psi(Z)]+C\big)$. Where the
+inequality constraint is inactive, pointwise stationarity gives
+$2\psi(z)+2\mu=0$, so $\psi(z)=-\mu=:\tau_C$; restoring $\psi(z)\le z$ yields
+$\psi^{\star}(z)=\min(z,\tau_C)$, and the equality constraint fixes $\tau_C$
+through $\E[\min(Z,\tau_C)]=g(\tau_C)=-C$. Strict convexity of $Q$ gives
+uniqueness up to null sets.
+\end{proof}
+
+% ------------------------------------------------------------
+\begin{proposition}[Shape of the optimal operator]
+\label{prop:shape}
+Fix $0<C<\E[Z_+]$. Among all $\psi$ with $\psi(z)\le z$ and
+$\E[\psi(Z)]=-C$, the upper envelope $\Sigma$ and the second moment $Q$ are
+minimized by the same element $\psi^{\star}_C(z)=\min(z,\tau_C)$.
+Consequently, for any risk criterion that depends on $\psi$ only through the
+triple $\big(C(\psi),\Sigma(\psi),Q(\psi)\big)$ and is nondecreasing in
+$\Sigma$ and in $Q$ at fixed $C$, at least one minimizer lies in the clipping
+family, and in the original coordinate it reads
+\begin{equation}
+\log\Mclass(k,p)=\min\big(\log k,\ c\,\tau_C\,(1-p)\big),
+\label{eq:shape_original}
+\end{equation}
+a band whose width is proportional to $1-p$.
+\end{proposition}
+
+\begin{proof}
+Combine \Cref{lem:min_envelope} and \Cref{lem:second_moment}, which exhibit
+the same minimizer $\psi^{\star}_C$ for the two functionals under the same
+constraint set. Monotonicity of the criterion in $\Sigma$ and $Q$ at fixed
+$C$ then transfers the minimality. The displayed form is the definition
+$\log\Mclass(k,p)=c(1-p)\psi(U)$ evaluated at $\psi=\psi^{\star}_C$, using
+positive homogeneity of the minimum.
+\end{proof}
+
+\begin{remark}[What the shape does not depend on]
+\label{rem:shape_exact}
+\Cref{prop:shape} uses only the scale-family structure of
+\Cref{def:two_channel}, the shrinkage constraint \eqref{eq:app_no_lift}, and
+monotonicity; it does not use the expansion \eqref{eq:linearization} employed
+in \Cref{thm:cis_formal}. The proportionality of the band width to $1-p_t$,
+which is the substantive claim of the main text, is therefore exact, and the
+first-order approximation of \Cref{thm:cis_formal} enters only through the
+value of the scalar $\tau^{\star}$.
+\end{remark}
+
+% ============================================================
+\subsection{Proof of the Surrogate Bound}
+\label{app:surrogate_bound}
+
+\begin{proposition}[Uniform surrogate bound]
+\label{prop:surrogate}
+Assume the $n$ token contributions are independent, or interpret $n$ as the
+effective sample size. Then for every $\Mclass\in\Mdown$ and every
+$P\in\Uset$,
+\begin{equation}
+\mathcal E_0(\Mclass;P)
+\le
+\Big(\sum_p\norm{b_p(\Mclass)}\Big)^{2}
++\frac1n\E_P\big[\Mclass^{2}\norm{\ell'}^{2}\big],
+\qquad\text{hence}\qquad
+\sup_{P\in\Uset}\mathcal E_0(\Mclass;P)\le\mathcal E(\Mclass).
+\label{eq:surrogate_bound}
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+Write $G_{\Mclass}:=\E_P[\Mclass(k)\ell']$. Then
+\begin{align}
+\mathcal E_0(\Mclass;P)
+&\overset{(a)}{=}
+\E_P\norm{(\widehat G_{\Mclass}-G_{\Mclass})+(G_{\Mclass}-G_0)}^{2}
+\overset{(b)}{=}
+\norm{G_{\Mclass}-G_0}^{2}
++\E_P\norm{\widehat G_{\Mclass}-G_{\Mclass}}^{2}
+\nonumber\\
+&\overset{(c)}{=}
+\norm{G_{\Mclass}-G_0}^{2}
++\frac1n\Big(\E_P\big[\Mclass^{2}\norm{\ell'}^{2}\big]-\norm{G_{\Mclass}}^{2}\Big)
+\overset{(d)}{\le}
+\norm{G_{\Mclass}-G_0}^{2}
++\frac1n\E_P\big[\Mclass^{2}\norm{\ell'}^{2}\big],
+\label{eq:surrogate_chain}
+\end{align}
+where (a) inserts and subtracts $G_{\Mclass}$, (b) drops the cross term
+because $\E_P[\widehat G_{\Mclass}-G_{\Mclass}]=0$, (c) uses independence of
+the $n$ contributions and expands the per-token second moment, and (d) drops
+the nonpositive term $-\norm{G_{\Mclass}}^{2}/n$. The per-token second moment
+is bounded by \Cref{lem:finite_second_moment} together with the upper half of
+\Cref{ass:payload}. For the bias,
+\begin{equation}
+G_{\Mclass}-G_0
+\overset{(e)}{=}
+\E_P\Big[\big(\Mclass(k_t)-e^{\,c(1-p_t)Z_t}\big)\ell'_t\Big]
+\overset{(f)}{=}
+\sum_p b_p(\Mclass),
+\qquad\text{so}\qquad
+\norm{G_{\Mclass}-G_0}
+\overset{(g)}{\le}
+\sum_p\norm{b_p(\Mclass)},
+\label{eq:bias_layer_chain}
+\end{equation}
+where (e) is the definition of $G_0$, (f) conditions on the confidence level
+and matches the definition of $b_p$ in the main text, and (g) is the triangle
+inequality. Substituting \eqref{eq:bias_layer_chain} into
+\eqref{eq:surrogate_chain} gives the first claim; since it holds for every
+$P\in\Uset$, taking the supremum gives the second.
+\end{proof}
+
+\begin{remark}[Correlated tokens]
+\label{rem:correlation}
+Step (c) is the only place where independence is used, and it enters through
+the factor $1/n$ alone. Under within-trajectory correlation the same
+expansion holds with $n$ replaced by an effective sample size
+$n_{\mathrm{eff}}$, which is a property of the batch and not of the operator;
+the same $n_{\mathrm{eff}}$ therefore multiplies the variance term of every
+candidate, and the comparison between operators is unaffected. The
+finite-sample correction to $\tau^{\star}$ established at the end of
+\Cref{thm:cis_formal} is $O(1/n_{\mathrm{eff}})$ and is smaller than the
+leading terms throughout. Empirically the token gradient directions within a
+confidence layer are nearly orthogonal
+($\rho\approx0.005$, \Cref{sec:app_two_channel}), which is consistent with
+$n_{\mathrm{eff}}$ being of the order of $n$.
+\end{remark}
+
+\begin{remark}[Scalar reduction]
+\label{rem:scalar_reduction}
+The triangle step (g) is exact when the per-level bias vectors are collinear
+and co-oriented, so $\mathcal E$ is a conservative surrogate across confidence
+levels and exact within each of them; the measured far-layer gradient
+coherence of $0.10$, indistinguishable from its permutation null
+(\Cref{sec:app_two_channel}), indicates that the true cross-level aggregation
+is closer to orthogonal than to collinear. In either case the minimization
+decouples across levels and reduces within each level to the same scalar
+problem, so the optimal $\tau^{\star}$ is unchanged. Within a level,
+\Cref{ass:payload} bounds $\norm{\ell'_t}/(1-p_t)$ between $a$ and $b$, so the
+risks of all candidate operators are enclosed by one pair of bounds and the
+displacement of the optimal $\tau$ is controlled by the ratio $b/a$.
+\end{remark}
+
+% ============================================================
+\subsection{Proof of Theorem~\ref{thm:cis_informal}}
+\label{app:cis_main_proof}
+
+\begin{theorem}[CIS operator]
+\label{thm:cis_formal}
+Assume \Cref{def:two_channel} and \Cref{ass:payload}, and let
+$\tau^{\star}>0$ solve
+\begin{equation}
+\frac{H(\tau^{\star})}{\tau^{\star}}=\frac{\eps}{2-\eps}.
+\label{eq:cis_equalizer}
+\end{equation}
+Assume further, on the confidence levels to which the first-order
+approximation is applied, that $\eta_+(\tau^{\star},p)=o(1)$ and that
+$\Delta(p)$ of \eqref{eq:support_constraint} is small. Then
+\eqref{eq:cis_equalizer} has a unique solution, at least one minimizer of
+$\mathcal E$ to first order on the log scale over $\Mdown$ belongs to the
+clipping family, and
+\begin{equation}
+\Mclass^{\star}\in\argminop_{\Mclass\in\Mdown}\mathcal E(\Mclass),
+\qquad
+\log\Mclass^{\star}(k_t,p_t)=\min\big\{\log k_t,\ \lambda(1-p_t)\big\},
+\qquad
+\lambda=c\,\tau^{\star}.
+\label{eq:cis_formal}
+\end{equation}
+If the finite-sample second-moment correction has bounded derivative near
+$\tau^{\star}$, then $\tau_n^{\star}=\tau^{\star}+O(n^{-1})$.
+\end{theorem}
+
+\begin{proof}
+\emph{Reduction to a scalar problem.} With $k^{(0)}=e^{c(1-p)Z}$ the
+scale-channel target and $\psi$ the standardized representation of $\Mclass$,
+\begin{equation}
+\Mclass(k,p)-k^{(0)}
+\overset{(a)}{=}
+e^{c(1-p)\psi(U)}-e^{c(1-p)Z}
+\overset{(b)}{=}
+c(1-p)\big[\psi(U)-Z\big]+O\big(\Delta(p)^{2}e^{\Delta(p)}\big),
+\label{eq:linearization}
+\end{equation}
+where (a) substitutes the parameterization and (b) expands both exponentials,
+the remainder being uniform over $\Mdown$ because
+\eqref{eq:support_constraint} bounds both exponents by $\Delta(p)$ in absolute
+value. By \Cref{lem:payload_scale}, \Cref{ass:payload} and
+\Cref{rem:scalar_reduction}, the leading squared gradient bias is determined,
+up to a factor lying in $[a^2,2b^2]$ common to all candidate operators, by
+$\big(\E[\psi(U)-Z]\big)^{2}$.
+
+\emph{Worst case over the residual rate.} On the high-confidence range the
+residual is nonnegative, so only the positive endpoint is reachable. When
+$B=0$ we have $U=Z$ and $\E[\psi(Z)-Z]=-C(\psi)$; in the
+positive-reachability regime the worst residual moves the standardized
+argument to the envelope, so $\sup_{B\ge0}\E[\psi(U)-Z]=\Sigma(\psi)+o(1)$.
+Writing $C=C(\psi)$ and $\Sigma=\Sigma(\psi)$, the leading mean error at rate
+$\alpha$ is $b_+(\alpha)=-C+\alpha(C+\Sigma)$, which is affine in $\alpha$;
+hence $b_+(\alpha)^2$ is convex and
+\begin{equation}
+\sup_{\alpha\in[0,\eps]}b_+(\alpha)^{2}
+\overset{(c)}{=}
+\max\Big\{C^{2},\ \big[\eps\Sigma-(1-\eps)C\big]^{2}\Big\}
+=:\mathcal B(C,\Sigma)
+\overset{(d)}{=}
+\begin{cases}
+C^{2}, & 0\le\Sigma\le\tfrac{2-\eps}{\eps}C,\\[4pt]
+\big[\eps\Sigma-(1-\eps)C\big]^{2}, & \Sigma>\tfrac{2-\eps}{\eps}C,
+\end{cases}
+\label{eq:B_CS}
+\end{equation}
+where (c) evaluates the convex function at the endpoints $\alpha=0$ and
+$\alpha=\eps$, and (d) compares the two branches, which coincide at
+$\Sigma=\tfrac{2-\eps}{\eps}C$. In particular $\mathcal B(C,\cdot)$ is
+nondecreasing.
+
+\emph{Dominance of the clipping family.} The criterion $\mathcal B$ together
+with the variance term depends on $\psi$ only through $(C,\Sigma,Q)$ and is
+nondecreasing in $\Sigma$ and in $Q$ at fixed $C$, so \Cref{prop:shape}
+applies: at least one minimizer belongs to $\{\psi_\tau\}_{\tau>0}$, on which
+$C(\psi_\tau)=H(\tau)$ and $\Sigma(\psi_\tau)=\tau$.
+
+\emph{Monotonicity and the equalizer root.} With $D_+$ as in
+\eqref{eq:D_pm},
+\begin{equation}
+H'(\tau)\overset{(e)}{=}-\bar F_Z(\tau)\le0,
+\qquad
+D_+'(\tau)\overset{(f)}{=}\eps+(1-\eps)\bar F_Z(\tau)>0,
+\qquad
+\frac{d}{d\tau}\frac{H(\tau)}{\tau}
+\overset{(g)}{=}
+-\frac{\tau\bar F_Z(\tau)+H(\tau)}{\tau^{2}}<0,
+\label{eq:monotone_chain}
+\end{equation}
+where (e) differentiates $H(\tau)=\int_\tau^\infty\bar F_Z$, (f) substitutes
+(e) into the definition of $D_+$, and (g) applies the quotient rule and then
+(e); strictness in (f) and (g) holds wherever the right tail is nonempty. The
+two branches $H^{2}$ and $D_+^{2}$ coincide exactly when
+$(2-\eps)H(\tau)=\eps\tau$, that is, at solutions of
+\eqref{eq:cis_equalizer}. Since $H(0)=\E[Z_+]>0$ gives
+$H(\tau)/\tau\to+\infty$ as $\tau\downarrow0$, while $\E[Z_+]<\infty$ gives
+$H(\tau)\to0$ and hence $H(\tau)/\tau\to0$ as $\tau\to\infty$, continuity and
+the strict decrease in (g) yield a unique root $\tau^{\star}>0$.
+
+\emph{Behaviour on either side of the root.} For $0<\tau<\tau^{\star}$ the
+strict decrease of $H(\tau)/\tau$ gives $\eps\tau<(2-\eps)H(\tau)$, whence
+\begin{equation}
+D_+(\tau)
+\overset{(h)}{<}
+(2-\eps)H(\tau)-(1-\eps)H(\tau)=H(\tau),
+\qquad
+D_+(\tau)+H(\tau)
+\overset{(i)}{=}
+\eps\big[\tau+H(\tau)\big]\ge0,
+\label{eq:left_branch_chain}
+\end{equation}
+where (h) substitutes the inequality into the definition of $D_+$ and (i)
+collects terms; together they give $\abs{D_+(\tau)}\le H(\tau)$, so by
+\eqref{eq:signed_two_branch} $R(\tau)=H(\tau)^{2}$, which decreases by (e).
+For $\tau>\tau^{\star}$ the same comparison reverses, giving
+$D_+(\tau)>H(\tau)\ge0$ and $R(\tau)=D_+(\tau)^{2}$, which increases strictly
+by (f). Hence $\tau^{\star}$ is the unique minimizer of $R$ on $(0,\infty)$
+whenever $\bar F_Z>0$ on $(0,\tau^{\star})$.
+
+\emph{Back-substitution and finite samples.} Undoing the parameterization at
+$\tau=\tau^{\star}$,
+\begin{equation}
+\log\Mclass^{\star}(k_t,p_t)
+\overset{(m)}{=}
+c(1-p_t)\,\psi_{\tau^{\star}}\!\left(\frac{\log k_t}{c(1-p_t)}\right)
+\overset{(n)}{=}
+\min\big\{\log k_t,\ c\tau^{\star}(1-p_t)\big\},
+\label{eq:back_substitution}
+\end{equation}
+where (m) is the definition of $\psi$ and (n) uses positive homogeneity of the
+minimum; setting $\lambda=c\tau^{\star}$ gives \eqref{eq:cis_formal}. Finally,
+write $R_n(\tau)=R(\tau)+V(\tau)/n$ with $V$ differentiable near
+$\tau^{\star}$ and $\abs{V'}\le L_V$, and let
+$s_{\min}:=\min\{\abs{R_{-}'(\tau^{\star})},R_{+}'(\tau^{\star})\}>0$
+be the smaller one-sided slope at the kink. Outside a neighbourhood of radius
+$L_V/(n\,s_{\min})$ the derivative of $R_n$ retains the sign of that of
+$R$, so
+$\abs{\tau_n^{\star}-\tau^{\star}}\le L_V/(n\,s_{\min})+o(n^{-1})$.
+\end{proof}
+
+\begin{remark}[Where the expansion is used, and why it is benign]
+\label{rem:expansion_scope}
+The expansion \eqref{eq:linearization} is the only approximation in the proof,
+and by \Cref{rem:shape_exact} it does not affect the shape of the operator,
+only the value of $\tau^{\star}$. Two facts limit the consequences. First,
+$R$ is an upper envelope of branches that meet at $\tau^{\star}$, and both
+one-sided slopes there are small, so a moderate misspecification of
+$\tau^{\star}$ changes the risk very little; this is the flat plateau observed
+in \Cref{sec:exp_hyperparams}, and it also explains why a change of the scale
+constant $c$, which moves the operating point in standardized units by a
+multiplicative factor, does move the risk. Second, $\Delta(p)$ is small
+precisely where the band is active: at high confidence $1-p_t$ is small, and
+at low confidence the band $\lambda(1-p_t)$ is wide and rarely binds, so
+tokens with large $\Delta$ are for the most part untouched by the operator.
+\Cref{sec:app_band_action} confirms that between $87\%$ and $90\%$ of
+truncated tokens have $1-p_t<0.1$.
+\end{remark}
+
+% ------------------------------------------------------------
+\begin{corollary}[Tail compilation]
+\label{cor:tail_compilation}
+If the upper tail of $F_Z$ satisfies
+$H(\tau)\sim\frac{\xi_+}{1-\xi_+}\tau\bar F_Z(\tau)$ with $0<\xi_+<1$, then
+$\bar F_Z(\tau^{\star})\sim\frac{1-\xi_+}{\xi_+}\cdot\frac{\eps}{2-\eps}$.
+\end{corollary}
+
+\begin{proof}
+Substituting the tail approximation into \eqref{eq:cis_equalizer},
+\begin{equation}
+\frac{\eps}{2-\eps}
+\overset{(a)}{=}
+\frac{H(\tau^{\star})}{\tau^{\star}}
+\overset{(b)}{\sim}
+\frac{\xi_+}{1-\xi_+}\,\bar F_Z(\tau^{\star}),
+\label{eq:tail_chain}
+\end{equation}
+where (a) is the equalizer equation and (b) divides the tail approximation by
+$\tau^{\star}$; solving for $\bar F_Z(\tau^{\star})$ gives the claim.
+\end{proof}
+
+\begin{corollary}[Sensitivity of the compiled threshold to $\eps$]
+\label{cor:eps_sensitivity}
+Under the tail form of \Cref{cor:tail_compilation}, with
+$\bar F_Z(\tau)\propto\tau^{-1/\xi_+}$ in the tail, the equalizer root obeys
+$\tau^{\star}\propto\eps^{-\xi_+}$ for small $\eps$. Consequently a
+misspecification of the residual rate by a factor $\rho$ moves the compiled
+slope $\lambda=c\tau^{\star}$ by a factor $\rho^{-\xi_+}$ only.
+\end{corollary}
+
+\begin{proof}
+\Cref{cor:tail_compilation} gives
+$\bar F_Z(\tau^{\star})\propto\eps$ up to a constant depending on $\xi_+$;
+inverting the tail form gives
+$\tau^{\star}\propto\bar F_Z(\tau^{\star})^{-\xi_+}\propto\eps^{-\xi_+}$.
+\end{proof}
+
+The measured value $\xi_+=0.49$ makes the exponent close to one half: the
+range $\hat\eps\in[0.78\%,2.16\%]$ obtained by varying the residual threshold
+$\zeta$ over $\{6,5,4\}$ (\Cref{sec:app_two_channel}) spans a factor of
+$2.8$ in $\eps$ and therefore only a factor of about $1.7$ in $\tau^{\star}$,
+which is inside the plateau reported in \Cref{sec:exp_hyperparams}. The
+compilation is in this sense insensitive to the convention used to define the
+residual channel.
+
+% ------------------------------------------------------------
+\begin{proposition}[Constant thresholds cannot track the width]
+\label{prop:constant_threshold}
+Let $\Mclass$ be an operator that does not depend on $p_t$, so that
+$\log\Mclass(k)=\min(\log k,T)$ for some $T>0$ in the clipping case. Suppose
+the confidence distribution puts mass on levels with $\varphi=1-p_t$ ranging
+over $[\varphi_{\min},\varphi_{\max}]$ and write
+$\rho:=\varphi_{\max}/\varphi_{\min}$. Then the standardized threshold
+induced at level $\varphi$ is $\tau_\varphi=T/(c\varphi)$, and
+\begin{equation}
+\sup_{\varphi}R(\tau_\varphi)
+\;\ge\;
+\min\Big\{R\big(\sqrt\rho\,\tau^{\star}\big),\
+R\big(\tau^{\star}/\sqrt\rho\big)\Big\}
+\;>\;
+R(\tau^{\star}),
+\label{eq:constant_threshold_bound}
+\end{equation}
+and the right-hand side increases with $\rho$. The same conclusion holds for
+a constant masking interval, with $\tau_\varphi$ replaced by the standardized
+image of its upper endpoint.
+\end{proposition}
+
+\begin{proof}
+Since $\tau_\varphi=T/(c\varphi)$, the thresholds induced at the two ends of
+the range satisfy $\tau_{\varphi_{\min}}/\tau_{\varphi_{\max}}=\rho$. Hence
+$\max\{\tau_{\varphi_{\min}}/\tau^{\star},\
+\tau^{\star}/\tau_{\varphi_{\max}}\}\ge\sqrt\rho$: if
+$\tau_{\varphi_{\max}}\ge\tau^{\star}/\sqrt\rho$ then
+$\tau_{\varphi_{\min}}=\rho\,\tau_{\varphi_{\max}}\ge\sqrt\rho\,\tau^{\star}$
+and the risk at $\varphi_{\min}$ is at least $R(\sqrt\rho\,\tau^{\star})$ by
+the strict increase of $R$ above $\tau^{\star}$ established in
+\Cref{thm:cis_formal}; otherwise $\tau_{\varphi_{\max}}<\tau^{\star}/\sqrt\rho$
+and the risk at $\varphi_{\max}$ is at least $R(\tau^{\star}/\sqrt\rho)$ by
+the decrease of $R$ below $\tau^{\star}$. Taking the smaller of the two lower
+bounds gives \eqref{eq:constant_threshold_bound}; strictness and monotonicity
+in $\rho$ follow from the strict monotonicity of $R$ on either side of its
+unique minimizer.
+\end{proof}
+
+\begin{remark}[Which end pays]
+\label{rem:constant_threshold_weight}
+Aggregating over confidence levels makes the asymmetry worse rather than
+better: by \Cref{ass:payload} the payload norm is proportional to $\varphi$,
+so the level at which a constant threshold over-truncates is the
+low-confidence end, where that factor is largest, while at the
+high-confidence end the same threshold sits far above the entire conditional
+distribution of $\log k_t$ and never binds --- which is the regime in which
+the residual channel is one-sided and positive.
+\end{remark}
+
+% ------------------------------------------------------------
+\begin{remark}[Why CIS carries no lower clipping parameter]
+\label{rem:no_lower_clip}
+The admissible class of the main text is
+$\Mdown=\{\Mclass:\ 0<\Mclass(k)\le k\}$. A finite lower clipping rule
+$\Mclass(k)=\max\{k,\underline w\}$ with $\underline w>0$ satisfies
+$\Mclass(k)>k$ whenever $k<\underline w$ and therefore lies outside
+$\Mdown$; the absence of a lower parameter in \eqref{eq:cis_formal} is thus a
+consequence of the admissible class together with the upper-envelope analysis
+above, and not a separate optimality statement. The restriction is not a
+technical convenience. First, it is what excludes degenerate solutions: the
+criterion \eqref{eq:B_CS} depends on $\psi$ only through its deficit and
+envelope, so an operator that is nearly constant in $U$ attains a small
+worst-case bias while performing no importance correction at all, and
+\eqref{eq:app_no_lift} is what rules such operators out. Second, the ratio
+obeys the support bound $k_t\ge p_t$ of \eqref{eq:support_constraint}, so its
+lower side is bounded by construction, whereas the upper side carries the
+heavy tail whose effect on the weight domain is quantified in
+\Cref{lem:finite_second_moment}. Third, the residual displacement at high
+confidence is one-sided and positive by \Cref{def:two_channel}, so lifting the
+lower side adds bias without removing any. The dose--response ablation of
+\Cref{tab:ablations} is the empirical counterpart: held-out accuracy degrades
+monotonically with the amount of lifting, and the most heavily lifted variant
+attains the highest training reward of the study while returning to the
+accuracy of no correction. Establishing that lower lifting is suboptimal as a
+theorem, rather than excluded by the class, would require a criterion that
+penalizes the loss of importance correction directly, which the leading-order
+bias does not.
+\end{remark}
 \section{Experimental Details}
 \label{app:experimental}
 

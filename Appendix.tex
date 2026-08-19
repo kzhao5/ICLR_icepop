@@ -977,6 +977,26 @@ Figure~\ref{fig:trigger} shows what the band does over the course of training. T
 \subsection{Additional Tables and Figures}
 \label{app:experimental-results}
 
+\begin{table}[h]
+\centering
+\caption{Per-seed held-out GSM8K accuracy (\%, legacy last-number exact match) and training statistics behind Table~\ref{tab:main}. Reward is the mean training reward over the third epoch (mean$\pm$std over seeds); Intervened is the fraction of loss tokens that the operator truncated or masked (seed one); s/step is seconds per optimizer step on one node of eight A100 GPUs. No operator adds a forward or backward pass.}
+\label{tab:main_seeds}
+\footnotesize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lccccccc}
+\toprule
+Method & Seed 1 & Seed 2 & Seed 3 & Mean$_{\pm\mathrm{std}}$ & Reward & Intervened (\%) & s/step \\
+\midrule
+No correction ($M\equiv1$) & 56.10 & 54.44 & 56.10 & $55.55_{\pm0.96}$ & $0.732_{\pm0.004}$ & 0 & 33 \\
+Exact ratio ($M=k$) & 64.59 & 55.50 & 59.06 & $59.72_{\pm4.58}$ & $0.829_{\pm0.012}$ & 0 & 32 \\
+KPop (binary-KL mask, $2$) & 59.44 & 59.29 & 57.85 & $58.86_{\pm0.88}$ & $0.848_{\pm0.010}$ & 21.9 & 31 \\
+KPop$^\dagger$ (corrected) & 58.45 & 62.40 & 62.24 & $61.03_{\pm2.24}$ & $0.846_{\pm0.016}$ & 0.5 & 31 \\
+IcePop (mask $[0.5,5]$) & \textbf{64.82} & 62.70 & 63.46 & $63.66_{\pm1.07}$ & $0.859_{\pm0.004}$ & 4.1 & 33 \\
+TIS (cap $2$) & 62.40 & 63.91 & \textbf{65.43} & $63.91_{\pm1.52}$ & $0.861_{\pm0.014}$ & 0.8 & 32 \\
+CIS (ours, \Cref{alg:cis}) & 64.67 & \textbf{64.97} & 63.23 & $\mathbf{64.29_{\pm0.93}}$ & $\mathbf{0.867_{\pm0.009}}$ & 4.2 & 34 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \begin{figure}[h]
 \centering
 \begin{minipage}[t]{0.325\linewidth}\centering

@@ -17,28 +17,29 @@ We train Qwen1.5-MoE-A2.7B-Chat with AReaL on the GSM8K training set (SGLang rol
 
 \begin{table}[t]
 \centering
-\caption{Main comparison on GSM8K with Qwen1.5-MoE-A2.7B-Chat: six ratio operators applied to the same $(k_t,p_t)$ under one recipe and one code path, three seeds each. Held-out accuracy is greedy exact match on the 1{,}319 test problems after three epochs (untrained model: $52.31$; standard error about $1.3$ points per run). Reward is the mean training reward over the third epoch; Intervened is the fraction of loss tokens that the operator truncated or masked (seed one); s/step is seconds per optimizer step on one node of eight A100 GPUs. Best value per column in bold. KPop$^\dagger$ is the numerically corrected variant of the shipped KL mask (Appendix~\ref{app:experimental-results}). CIS has the highest mean, the smallest spread, and the highest worst seed, at no extra cost per step.}
+\caption{Held-out accuracy (\%) across five math benchmarks after RL on GSM8K with Qwen1.5-MoE-A2.7B-Chat: six ratio operators applied to the same $(k_t,p_t)$ under one recipe and one code path. Values are greedy pass@1 judged by math-verify, mean$\pm$std over three RL seeds; Avg is the macro average over the five benchmarks; the first row is the model before RL. KPop$^\dagger$ is the numerically corrected variant of the shipped KL mask (Appendix~\ref{app:experimental-results}). Per-seed accuracy, training reward, intervention rates, and step time are in Table~\ref{tab:main_seeds}.}
 \label{tab:main}
-\footnotesize\setlength{\tabcolsep}{3.2pt}
-\begin{tabular}{l|cccc|ccc}
+\footnotesize\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{cl|ccccc|c}
 \toprule
- & \multicolumn{4}{c|}{Held-out accuracy (\%)$\uparrow$} & \multicolumn{3}{c}{Training} \\
-\cmidrule(lr){2-5}\cmidrule(lr){6-8}
-Method & Seed 1 & Seed 2 & Seed 3 & Mean$_{\pm\mathrm{std}}$ & Reward$\uparrow$ & Intervened (\%) & s/step \\
+Model & Method & GSM8K & MATH500 & SVAMP & Minerva & Olympiad & Avg \\
 \midrule
-No correction ($M\equiv1$) & 56.10 & 54.44 & 56.10 & $55.55_{\pm0.96}$ & $0.732_{\pm0.004}$ & 0 & 33 \\
-Exact ratio ($M=k$) & 64.59 & 55.50 & 59.06 & $59.72_{\pm4.58}$ & $0.829_{\pm0.012}$ & 0 & 32 \\
-KPop (binary-KL mask, $2$) & 59.44 & 59.29 & 57.85 & $58.86_{\pm0.88}$ & $0.848_{\pm0.010}$ & 21.9 & 31 \\
-KPop$^\dagger$ (corrected) & 58.45 & 62.40 & 62.24 & $61.03_{\pm2.24}$ & $0.846_{\pm0.016}$ & 0.5 & 31 \\
-IcePop (mask $[0.5,5]$) & \textbf{64.82} & 62.70 & 63.46 & $63.66_{\pm1.07}$ & $0.859_{\pm0.004}$ & 4.1 & 33 \\
-TIS (cap $2$) & 62.40 & 63.91 & \textbf{65.43} & $63.91_{\pm1.52}$ & $0.861_{\pm0.014}$ & 0.8 & 32 \\
-\rowcolor{blue!8}
-CIS (ours, \Cref{alg:cis}) & 64.67 & \textbf{64.97} & 63.23 & $\mathbf{64.29_{\pm0.93}}$ & $\mathbf{0.867_{\pm0.009}}$ & 4.2 & 34 \\
+\multirow{8}{*}{\rotatebox[origin=c]{90}{\scriptsize Qwen1.5-MoE-A2.7B}}
+% TODO: fill non-GSM8K columns from gap_measurement/results/eval_suite.tsv when the 22 suite jobs finish
+& Base model (no RL) & 52.31 & --- & --- & --- & --- & --- \\
+& No correction ($M\equiv1$) & $55.55_{\pm0.96}$ & --- & --- & --- & --- & --- \\
+& Exact ratio ($M=k$) & $59.72_{\pm4.58}$ & --- & --- & --- & --- & --- \\
+& KPop (binary-KL mask, $2$) & $58.86_{\pm0.88}$ & --- & --- & --- & --- & --- \\
+& KPop$^\dagger$ (corrected) & $61.03_{\pm2.24}$ & --- & --- & --- & --- & --- \\
+& IcePop (mask $[0.5,5]$) & $63.66_{\pm1.07}$ & --- & --- & --- & --- & --- \\
+& TIS (cap $2$) & $63.91_{\pm1.52}$ & --- & --- & --- & --- & --- \\
+\rowcolor{blue!8}\cellcolor{white}
+& CIS (ours, \Cref{alg:cis}) & $\mathbf{64.29_{\pm0.93}}$ & --- & --- & --- & --- & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:main} compares six operators applied to the same pair $(k_t,p_t)$ in the same code. Correcting the mismatch in any bounded way is the largest effect: the corrected runs gain between $3.3$ and $8.7$ points over the uncorrected loss, whose training reward stalls at $0.73$ while every corrected run exceeds $0.82$. Among the corrections, CIS has the highest mean, the smallest spread across seeds, and the highest worst seed ($63.23$ against $62.70$ for IcePop and $62.40$ for TIS), and it also has the highest training reward. The three leading methods lie within one standard error of one another, so we do not claim a significant ordering among them on this task and model. The exact ratio has a healthy reward curve on every seed but a held-out spread of $9.1$ points, and on one seed it falls to the level of no correction while its training reward stays close to the other seeds. The KL mask intervenes on about a fifth of all tokens; this rate is a numerical property of the shipped implementation, in which a token whose probability saturates at one on either engine is masked (Appendix~\ref{app:experimental-results}), and the numerically corrected variant recovers two points but stays below the cap, the gate, and the band. No operator adds a forward or backward pass, and all arms take $31$ to $34$ seconds per optimizer step. Held-out accuracy and training reward disagree in several places in Table~\ref{tab:main}; whenever they disagree, the training reward is the quantity that is blind to the difference. Training curves, held-out accuracy at every epoch checkpoint, gradient norms, and intervention rates over training are in Appendix~\ref{app:experimental-dynamics}; on the epoch checkpoints CIS leads at every epoch and is the only method whose accuracy does not dip.
+Table~\ref{tab:main} compares six operators applied to the same pair $(k_t,p_t)$ in the same code; per-seed values and training statistics are in Table~\ref{tab:main_seeds} of the appendix. Correcting the mismatch in any bounded way is the largest effect: the corrected runs gain between $3.3$ and $8.7$ points over the uncorrected loss, whose training reward stalls at $0.73$ while every corrected run exceeds $0.82$. Among the corrections, CIS has the highest mean, the smallest spread across seeds, and the highest worst seed ($63.23$ against $62.70$ for IcePop and $62.40$ for TIS), and it also has the highest training reward. The three leading methods lie within one standard error of one another, so we do not claim a significant ordering among them on this task and model. The exact ratio has a healthy reward curve on every seed but a held-out spread of $9.1$ points, and on one seed it falls to the level of no correction while its training reward stays close to the other seeds. The KL mask intervenes on about a fifth of all tokens; this rate is a numerical property of the shipped implementation, in which a token whose probability saturates at one on either engine is masked (Appendix~\ref{app:experimental-results}), and the numerically corrected variant recovers two points but stays below the cap, the gate, and the band. No operator adds a forward or backward pass, and all arms take $31$ to $34$ seconds per optimizer step. Held-out accuracy and training reward disagree in several places in Table~\ref{tab:main}; whenever they disagree, the training reward is the quantity that is blind to the difference. Training curves, held-out accuracy at every epoch checkpoint, gradient norms, and intervention rates over training are in Appendix~\ref{app:experimental-dynamics}; on the epoch checkpoints CIS leads at every epoch and is the only method whose accuracy does not dip.
 
 \subsection{RQ2: Which elements of the operator matter, and in which direction?}
 \label{sec:experiments-ablation}

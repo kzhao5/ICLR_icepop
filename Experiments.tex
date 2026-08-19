@@ -17,16 +17,16 @@ We train Qwen1.5-MoE-A2.7B-Chat with AReaL on the GSM8K training set (SGLang rol
 
 \begin{table}[t]
 \centering
-\caption{Held-out accuracy (\%) across five math benchmarks after RL on GSM8K with Qwen1.5-MoE-A2.7B-Chat: six ratio operators applied to the same $(k_t,p_t)$ under one recipe and one code path. Values are greedy pass@1 judged by math-verify, mean$\pm$std over three RL seeds; Avg is the macro average over the five benchmarks; the first row is the model before RL. KPop$^\dagger$ is the numerically corrected variant of the shipped KL mask (Appendix~\ref{app:experimental-results}). Per-seed accuracy, training reward, intervention rates, and step time are in Table~\ref{tab:main_seeds}.}
+\caption{Held-out accuracy (\%) across five math benchmarks after RL on GSM8K: ratio operators applied to the same $(k_t,p_t)$ under one recipe and one code path per model. Values are greedy pass@1 judged by math-verify, mean$\pm$std over three RL seeds; Avg is the macro average over the five benchmarks; the first row of each block is the model before RL. KPop$^\dagger$ is the numerically corrected variant of the shipped KL mask (Appendix~\ref{app:experimental-results}). Per-seed accuracy, training reward, intervention rates, and step time are in Table~\ref{tab:main_seeds}.}
 \label{tab:main}
 \footnotesize\setlength{\tabcolsep}{2.5pt}
 \begin{tabular}{cl|ccccc|c}
 \toprule
 Model & Method & GSM8K & MATH500 & SVAMP & Minerva & Olympiad & Avg \\
 \midrule
+% Qwen1.5-MoE: GSM8K column = legacy EM values; swap all cells to eval_suite math-verify numbers when the 22 suite jobs finish (gap_measurement/results/eval_suite.tsv)
 \multirow{8}{*}{\rotatebox[origin=c]{90}{\scriptsize Qwen1.5-MoE-A2.7B}}
-% TODO: fill non-GSM8K columns from gap_measurement/results/eval_suite.tsv when the 22 suite jobs finish
-& Base model (no RL) & 52.31 & --- & --- & --- & --- & --- \\
+& Base model (no RL) & 55.50 & 21.20 & 59.00 & 4.04 & 4.90 & 28.93 \\
 & No correction ($M\equiv1$) & $55.55_{\pm0.96}$ & --- & --- & --- & --- & --- \\
 & Exact ratio ($M=k$) & $59.72_{\pm4.58}$ & --- & --- & --- & --- & --- \\
 & KPop (binary-KL mask, $2$) & $58.86_{\pm0.88}$ & --- & --- & --- & --- & --- \\
@@ -35,6 +35,30 @@ Model & Method & GSM8K & MATH500 & SVAMP & Minerva & Olympiad & Avg \\
 & TIS (cap $2$) & $63.91_{\pm1.52}$ & --- & --- & --- & --- & --- \\
 \rowcolor{blue!8}\cellcolor{white}
 & CIS (ours, \Cref{alg:cis}) & $\mathbf{64.29_{\pm0.93}}$ & --- & --- & --- & --- & --- \\
+\midrule
+% TODO second MoE (planned: DeepSeek-V2-Lite): fill after Cell D runs
+\multirow{8}{*}{\rotatebox[origin=c]{90}{\scriptsize DeepSeek-V2-Lite}}
+& Base model (no RL) & --- & --- & --- & --- & --- & --- \\
+& No correction ($M\equiv1$) & --- & --- & --- & --- & --- & --- \\
+& Exact ratio ($M=k$) & --- & --- & --- & --- & --- & --- \\
+& KPop (binary-KL mask, $2$) & --- & --- & --- & --- & --- & --- \\
+& KPop$^\dagger$ (corrected) & --- & --- & --- & --- & --- & --- \\
+& IcePop (mask $[0.5,5]$) & --- & --- & --- & --- & --- & --- \\
+& TIS (cap $2$) & --- & --- & --- & --- & --- & --- \\
+\rowcolor{blue!8}\cellcolor{white}
+& CIS (ours, \Cref{alg:cis}) & --- & --- & --- & --- & --- & --- \\
+\midrule
+% TODO third MoE (planned: Qwen3-30B-A3B): fill after Cell E runs
+\multirow{8}{*}{\rotatebox[origin=c]{90}{\scriptsize Qwen3-30B-A3B}}
+& Base model (no RL) & --- & --- & --- & --- & --- & --- \\
+& No correction ($M\equiv1$) & --- & --- & --- & --- & --- & --- \\
+& Exact ratio ($M=k$) & --- & --- & --- & --- & --- & --- \\
+& KPop (binary-KL mask, $2$) & --- & --- & --- & --- & --- & --- \\
+& KPop$^\dagger$ (corrected) & --- & --- & --- & --- & --- & --- \\
+& IcePop (mask $[0.5,5]$) & --- & --- & --- & --- & --- & --- \\
+& TIS (cap $2$) & --- & --- & --- & --- & --- & --- \\
+\rowcolor{blue!8}\cellcolor{white}
+& CIS (ours, \Cref{alg:cis}) & --- & --- & --- & --- & --- & --- \\
 \bottomrule
 \end{tabular}
 \end{table}

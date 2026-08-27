@@ -10,23 +10,22 @@ The experiments answer four questions. \textbf{RQ1}: inside one RL system and un
 We measure $(k_t,p_t)$ on 12.3M tokens of Qwen1.5-MoE-A2.7B-Chat and 12.4M tokens of a dense control (Qwen1.5-14B-Chat): vLLM samples eight responses per DAPO-Math prompt at temperature one and records each sampled token's log-probability at the sampling step, and the training engine rescores the same sequences at the same parameters. Controls, the paired stale-snapshot measurement behind Figure~\ref{fig:two_channel}, and training-time logging are in Appendix~\ref{app:experimental-diagnostics}.
 
 \noindent\textbf{Training.}
-We train Qwen1.5-MoE-A2.7B-Chat with AReaL on the GSM8K training set (SGLang rollouts, FSDP training, both bf16) and report greedy exact-match accuracy on the 1{,}319 held-out test problems (standard error about $1.3$ points per arm), with three seeds per method and one further run per method with the KV cache quantized to FP8. All arms share one recipe and code path (Appendix~\ref{app:experimental-implementation}) and differ only in the operator: no correction, the exact ratio, TIS (cap $2$), IcePop (mask $[0.5,5]$), the binary-KL mask of AReaL (KPop, threshold $2$), and CIS (\Cref{alg:cis}, $\lambda_+=2.3$, $\kappa=5\times10^{-3}$).
+We train Qwen1.5-MoE-A2.7B-Chat with AReaL on the GSM8K training set (SGLang rollouts, FSDP training, both bf16), with three seeds per method and one further run per method with the KV cache quantized to FP8. Held-out accuracy is greedy pass@1 judged by math-verify under one prompt and one judge on five benchmarks, the GSM8K test set, MATH500, SVAMP, Minerva-Math, and OlympiadBench (protocol preregistered in Appendix~\ref{app:experimental-contract}; the standard error on GSM8K is about $1.3$ points per arm). All arms share one recipe and code path (Appendix~\ref{app:experimental-implementation}) and differ only in the operator applied to $k_t$: no correction, the exact ratio, TIS (cap $2$), IcePop (mask $[0.5,5]$), the binary-KL mask of AReaL (KPop, threshold $2$), and CIS (\Cref{alg:cis}, $\lambda_+=2.3$, $\kappa=5\times10^{-3}$). Three baselines from outside the token-level class run under the same recipe: Seq-TIS and Seq-MIS apply the cap $2$ and the mask $[0.5,2]$ to the product ratio of the whole response, following the sequence-level options of the public TIS/MIS reference implementation; GSPO \citep{zheng2025gspo} replaces the token-level surrogate by a sequence-level geometric-mean ratio with the clip range $(3\times10^{-4},4\times10^{-4})$ of the original and applies no correction to $k_t$; and FP16 \citep{qi2025fp16} runs rollouts and training in fp16 with loss scaling and no operator. The ablations and the hyperparameter study of Sections~\ref{sec:experiments-ablation} and~\ref{sec:experiments-tuning} predate the five-benchmark protocol and report GSM8K exact-match accuracy under the appendix protocol; Table~\ref{tab:main_seeds} lists both.
 
 \subsection{RQ1: Does CIS improve held-out accuracy and stability?}
 \label{sec:experiments-results}
 
 \begin{table}[t]
 \centering
-\caption{Held-out accuracy (\%) across five math benchmarks after RL on GSM8K: ratio operators applied to the same $(k_t,p_t)$ under one recipe and one code path per model. Values are greedy pass@1 judged by math-verify (uniform protocol across benchmarks), mean$\pm$std over three RL seeds; Avg is the macro average over the five benchmarks; the first row of each block is the model before RL; operator parameters are those of Section~\ref{sec:experiments-setup}. KPop$^\dagger$ is the numerically corrected variant of the shipped KL mask (Appendix~\ref{app:experimental-results}); the as-shipped KPop run collapsed on one of three seeds into emitting empty chat-format responses (the same checkpoint scores $59.3$ under the completion-style prompt of the appendix protocol), which the corrected variant does not exhibit. Per-seed accuracy, training reward, intervention rates, and step time are in Table~\ref{tab:main_seeds}.}
+\caption{Held-out accuracy (\%) across five math benchmarks after RL on GSM8K: operators applied to the same $(k_t,p_t)$ under one recipe and one code path per model. Values are greedy pass@1 judged by math-verify (uniform protocol across benchmarks), mean$\pm$std over three RL seeds; Avg is the macro average over the five benchmarks; the first row of each block is the model before RL; operator parameters are those of Section~\ref{sec:experiments-setup}. Rows above the rule act on the token-level ratio $k_t$; Seq-TIS and Seq-MIS act on the product ratio of the response, GSPO uses a sequence-level surrogate with no correction of $k_t$, and FP16 runs the pipeline in fp16 with no operator. KPop$^\dagger$ is the numerically corrected variant of the shipped KL mask (Appendix~\ref{app:experimental-results}); the as-shipped KPop run collapsed on one of three seeds into emitting empty chat-format responses (the same checkpoint scores $59.3$ under the completion-style prompt of the appendix protocol), which the corrected variant does not exhibit; GSPO lost its training reward on all three seeds (Table~\ref{tab:extra_seeds}). Seq-TIS is the mean of two seeds; the third is running. Per-seed accuracy, training reward, intervention rates, and step time are in Tables~\ref{tab:main_seeds} and~\ref{tab:extra_seeds}.}
 \label{tab:main}
 \footnotesize\setlength{\tabcolsep}{2.5pt}
 \begin{tabular}{cl|ccccc|c}
 \toprule
 Model & Method & GSM8K & MATH500 & SVAMP & Minerva & Olympiad & Avg \\
 \midrule
-% Qwen1.5-MoE block: eval_suite math-verify numbers (results/eval_suite.tsv)
-% TODO: RQ1 prose still cites legacy EM GSM8K numbers; rewrite after KPop rerun lands
-\multirow{8}{*}{\rotatebox[origin=c]{90}{\scriptsize Qwen1.5-MoE-A2.7B}}
+% Qwen1.5-MoE block: eval_suite math-verify numbers (results/eval_suite.tsv); Seq-TIS two seeds, s3 job 13502595
+\multirow{12}{*}{\rotatebox[origin=c]{90}{\scriptsize Qwen1.5-MoE-A2.7B}}
 & Base model (no RL) & 55.50 & 21.20 & 59.00 & 4.04 & 4.90 & 28.93 \\
 & No correction & $61.21_{\pm1.17}$ & $21.33_{\pm1.40}$ & $64.33_{\pm1.73}$ & $3.68_{\pm1.28}$ & $4.40_{\pm0.45}$ & $30.99_{\pm0.22}$ \\
 & Exact ratio & $62.07_{\pm5.80}$ & $22.00_{\pm1.22}$ & $65.11_{\pm7.12}$ & $5.51_{\pm0.64}$ & $4.60_{\pm0.15}$ & $31.86_{\pm2.23}$ \\
@@ -36,35 +35,50 @@ Model & Method & GSM8K & MATH500 & SVAMP & Minerva & Olympiad & Avg \\
 & TIS & $61.64_{\pm4.51}$ & $20.27_{\pm4.87}$ & $65.78_{\pm4.00}$ & $4.66_{\pm1.39}$ & $3.91_{\pm0.60}$ & $31.25_{\pm2.63}$ \\
 \rowcolor{blue!8}\cellcolor{white}
 & CIS (ours) & $\mathbf{67.88_{\pm1.64}}$ & $24.20_{\pm1.59}$ & $69.45_{\pm1.95}$ & $\mathbf{5.88_{\pm0.64}}$ & $4.94_{\pm0.99}$ & $\mathbf{34.47_{\pm0.48}}$ \\
+\cmidrule(lr){2-8}
+& Seq-TIS & $65.84_{\pm0.16}$ & $22.60_{\pm0.28}$ & $63.00_{\pm1.41}$ & $3.12_{\pm1.82}$ & $4.82_{\pm0.52}$ & $31.88_{\pm0.73}$ \\
+& Seq-MIS & $60.98_{\pm1.50}$ & $22.07_{\pm0.50}$ & $63.56_{\pm1.17}$ & $4.41_{\pm0.64}$ & $4.75_{\pm0.26}$ & $31.15_{\pm0.67}$ \\
+& GSPO & $30.88_{\pm27.46}$ & $10.13_{\pm8.26}$ & $37.89_{\pm33.27}$ & $3.07_{\pm2.45}$ & $2.28_{\pm0.99}$ & $16.85_{\pm14.37}$ \\
+& FP16 & $60.02_{\pm1.16}$ & $22.67_{\pm0.46}$ & $62.78_{\pm1.54}$ & $5.03_{\pm0.21}$ & $4.60_{\pm0.45}$ & $31.02_{\pm0.39}$ \\
 \midrule
 % TODO second MoE (planned: DeepSeek-V2-Lite): fill after Cell D runs
-\multirow{8}{*}{\rotatebox[origin=c]{90}{\scriptsize DeepSeek-V2-Lite}}
+\multirow{12}{*}{\rotatebox[origin=c]{90}{\scriptsize DeepSeek-V2-Lite}}
 & Base model (no RL) & --- & --- & --- & --- & --- & --- \\
 & No correction & --- & --- & --- & --- & --- & --- \\
 & Exact ratio & --- & --- & --- & --- & --- & --- \\
-& KPop & $40.79_{\pm33.67}$ & $14.53_{\pm10.34}$ & $42.67_{\pm34.93}$ & $3.68_{\pm0.37}$ & $3.76_{\pm1.99}$ & $21.08_{\pm16.17}$ \\
+& KPop & --- & --- & --- & --- & --- & --- \\
 & KPop$^\dagger$ & --- & --- & --- & --- & --- & --- \\
 & IcePop & --- & --- & --- & --- & --- & --- \\
 & TIS & --- & --- & --- & --- & --- & --- \\
 \rowcolor{blue!8}\cellcolor{white}
 & CIS (ours) & --- & --- & --- & --- & --- & --- \\
+\cmidrule(lr){2-8}
+& Seq-TIS & --- & --- & --- & --- & --- & --- \\
+& Seq-MIS & --- & --- & --- & --- & --- & --- \\
+& GSPO & --- & --- & --- & --- & --- & --- \\
+& FP16 & --- & --- & --- & --- & --- & --- \\
 \midrule
 % TODO third MoE (planned: Qwen3-30B-A3B): fill after Cell E runs
-\multirow{8}{*}{\rotatebox[origin=c]{90}{\scriptsize Qwen3-30B-A3B}}
+\multirow{12}{*}{\rotatebox[origin=c]{90}{\scriptsize Qwen3-30B-A3B}}
 & Base model (no RL) & --- & --- & --- & --- & --- & --- \\
 & No correction & --- & --- & --- & --- & --- & --- \\
 & Exact ratio & --- & --- & --- & --- & --- & --- \\
-& KPop & $40.79_{\pm33.67}$ & $14.53_{\pm10.34}$ & $42.67_{\pm34.93}$ & $3.68_{\pm0.37}$ & $3.76_{\pm1.99}$ & $21.08_{\pm16.17}$ \\
+& KPop & --- & --- & --- & --- & --- & --- \\
 & KPop$^\dagger$ & --- & --- & --- & --- & --- & --- \\
 & IcePop & --- & --- & --- & --- & --- & --- \\
 & TIS & --- & --- & --- & --- & --- & --- \\
 \rowcolor{blue!8}\cellcolor{white}
 & CIS (ours) & --- & --- & --- & --- & --- & --- \\
+\cmidrule(lr){2-8}
+& Seq-TIS & --- & --- & --- & --- & --- & --- \\
+& Seq-MIS & --- & --- & --- & --- & --- & --- \\
+& GSPO & --- & --- & --- & --- & --- & --- \\
+& FP16 & --- & --- & --- & --- & --- & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:main} compares six operators applied to the same pair $(k_t,p_t)$ in the same code; per-seed values and training statistics are in Table~\ref{tab:main_seeds} of the appendix. Correcting the mismatch in any bounded way is the largest effect: the corrected runs gain between $3.3$ and $8.7$ points over the uncorrected loss, whose training reward stalls at $0.73$ while every corrected run exceeds $0.82$. Among the corrections, CIS has the highest mean, the smallest spread across seeds, and the highest worst seed ($63.23$ against $62.70$ for IcePop and $62.40$ for TIS), and it also has the highest training reward. The three leading methods lie within one standard error of one another, so we do not claim a significant ordering among them on this task and model. The exact ratio has a healthy reward curve on every seed but a held-out spread of $9.1$ points, and on one seed it falls to the level of no correction while its training reward stays close to the other seeds. The KL mask intervenes on about a fifth of all tokens; this rate is a numerical property of the shipped implementation, in which a token whose probability saturates at one on either engine is masked (Appendix~\ref{app:experimental-results}), and the numerically corrected variant recovers two points but stays below the cap, the gate, and the band. No operator adds a forward or backward pass, and all arms take $31$ to $34$ seconds per optimizer step. Held-out accuracy and training reward disagree in several places in Table~\ref{tab:main}; whenever they disagree, the training reward is the quantity that is blind to the difference. Training curves, held-out accuracy at every epoch checkpoint, gradient norms, and intervention rates over training are in Appendix~\ref{app:experimental-dynamics}; on the epoch checkpoints CIS leads at every epoch and is the only method whose accuracy does not dip.
+Table~\ref{tab:main} compares the operators on the same pair $(k_t,p_t)$ in the same code; per-seed values and training statistics are in Tables~\ref{tab:main_seeds} and~\ref{tab:extra_seeds}. Correcting the mismatch in a bounded way is the largest effect: the training reward of the uncorrected run stalls at $0.73$, every bounded token-level correction reaches at least $0.83$, and the three corrections that are stable across seeds (KPop$^\dagger$, IcePop, CIS) raise the macro average from $31.0$ to between $33.0$ and $34.5$. The corrections differ mainly in stability. CIS has the highest accuracy on the training task ($67.9$ on GSM8K against $66.2$ for IcePop), the highest macro average, and the smallest spread of the macro average across seeds ($\pm0.5$); its worst seed on GSM8K ($66.7$) is above the mean of every other method. IcePop is nominally ahead on MATH500 and SVAMP by less than half a point, within one standard error, and we do not claim an ordering between the two on the transfer benchmarks. The exact ratio and TIS have healthy reward curves on every seed but GSM8K spreads of $5.8$ and $4.5$ points, and each has one seed at or below the uncorrected level ($58.6$ and $57.2$ against $61.2$) while its training reward stays close to the other seeds. The shipped KL mask intervenes on about a fifth of all tokens, a numerical property of the implementation in which a token whose probability saturates at one on either engine is masked (Appendix~\ref{app:experimental-results}), and on one seed the policy collapsed into emitting empty responses under the chat template; the corrected variant KPop$^\dagger$ removes the collapse and recovers to $33.0$, still below the cap, the gate, and the band. The three baselines from outside the token-level class behave as the two-channel model predicts. The sequence-level mask rejects $95\%$ of responses, because the product ratio of a response of a few hundred tokens leaves $[0.5,2]$ almost surely, and the fp16 pipeline shrinks the scale constant but leaves the residual channel in place; both return to the uncorrected level ($31.2$ and $31.0$, with training rewards of $0.76$ and $0.74$). The sequence-level cap acts on $12$ to $17\%$ of responses and keeps most of the GSM8K gain ($65.8$) but not the transfer ($31.9$). GSPO, whose clip acts on a sequence-level ratio while $k_t$ is left uncorrected, lost its training reward on all three seeds, from about $0.80$ to $0.34$, $0.03$, and $0.54$ over the last epoch, and ends below the untrained model. No operator adds a forward or backward pass. Held-out accuracy and training reward disagree in several places in Table~\ref{tab:main}; whenever they disagree, the training reward is the quantity that is blind to the difference. Training curves, held-out accuracy at every epoch checkpoint, gradient norms, and intervention rates over training are in Appendix~\ref{app:experimental-dynamics}; on the epoch checkpoints CIS leads at every epoch and is the only method whose accuracy does not dip.
 
 \subsection{RQ2: Which elements of the operator matter, and in which direction?}
 \label{sec:experiments-ablation}

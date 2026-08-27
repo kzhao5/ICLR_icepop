@@ -997,6 +997,31 @@ CIS (ours, \Cref{alg:cis}) & 64.67 & \textbf{64.97} & 63.23 & $\mathbf{64.29_{\p
 \end{tabular}
 \end{table}
 
+\begin{table}[h]
+\centering
+\caption{Per-seed results for the baselines from outside the token-level operator class (five-benchmark protocol of Table~\ref{tab:main}): GSM8K accuracy and macro average over the five benchmarks per seed, mean training reward over the third epoch, and the fraction of responses on which the operator acts (Seq-TIS: capped; Seq-MIS: rejected). GSPO's reward peaks near $0.80$ in the second epoch on every seed and then collapses; FP16 has no operator. Seq-TIS seed 3 is running.}
+\label{tab:extra_seeds}
+\footnotesize\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccccc}
+\toprule
+ & \multicolumn{3}{c}{GSM8K (seed 1 / 2 / 3)} & \multicolumn{3}{c}{Avg (seed 1 / 2 / 3)} \\
+Method & & & & & & \\
+\midrule
+Seq-TIS (cap $2$, product ratio) & 65.96 & 65.73 & --- & 32.39 & 31.36 & --- \\
+Seq-MIS (mask $[0.5,2]$, product ratio) & 60.27 & 62.70 & 59.97 & 30.47 & 31.81 & 31.18 \\
+GSPO (clip $3\times10^{-4}/4\times10^{-4}$) & 52.54 & 0.00 & 40.11 & 27.44 & 0.50 & 22.61 \\
+FP16 (no operator) & 60.27 & 58.76 & 61.03 & 30.68 & 30.93 & 31.44 \\
+\midrule
+ & \multicolumn{3}{c}{Reward, epoch 3 (seed 1 / 2 / 3)} & \multicolumn{3}{c}{Responses acted on (\%)} \\
+\midrule
+Seq-TIS & 0.799 & 0.802 & --- & 16.8 & 12.0 & --- \\
+Seq-MIS & 0.759 & 0.758 & 0.762 & 94.0 & 95.1 & 94.6 \\
+GSPO & 0.340 & 0.032 & 0.541 & --- & --- & --- \\
+FP16 & 0.741 & 0.738 & 0.739 & 0 & 0 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \begin{figure}[h]
 \centering
 \begin{minipage}[t]{0.325\linewidth}\centering

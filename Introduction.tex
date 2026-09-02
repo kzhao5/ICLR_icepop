@@ -16,4 +16,7 @@
 % \end{itemize}
 
 \paragraph{Notation.}
-% The differentiable training policy is $p_{\theta}$ and the rollout policy is $q_{\theta}$. At synchronized parameters $\theta_0$, the engine ratio is $K=p_{\theta_0}/q_{\theta_0}$, with $k$ denoting a realized value. The full importance ratio factors as $w=rK$, where $r=p_{\theta}/p_{\theta_0}$ is parameter-space drift. We write $P_K$ for a clean ratio law, $P_0$ for the clean law in the localized model, $\Lset$ for a reachable escape set, and $\eps$ for the corrupted-channel mass. The payload class is $\Xclass_B=\{x:\norm{x(k)}\le B\}$, the clean tail is $T(m)=P_0(K>m,K\in\Lset)$, and $\pi_{\Lset}=P_0(K\in\Lset,K>0)$.
+We use plain letters such as $x$ to denote scalars, lowercase bold letters such as
+$\mathbf{x}$ to denote vectors, and calligraphic letters such as $\mathcal{F}$ to
+denote sets and function classes. For a vector $\mathbf{x}$, $\|\mathbf{x}\|_2$
+denotes its $\ell_2$-norm. For a scalar $x \in (0,1)$, $\logit x := \log\frac{x}{1-x}$.

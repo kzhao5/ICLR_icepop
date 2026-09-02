@@ -17,7 +17,7 @@ We train Qwen1.5-MoE-A2.7B-Chat with AReaL on the GSM8K training set (SGLang rol
 
 \begin{table}[t]
 \centering
-\caption{Held-out accuracy (\%) across five math benchmarks after RL on GSM8K: operators applied to the same $(k_t,p_t)$ under one recipe and one code path per model. Values are greedy pass@1 judged by math-verify (uniform protocol across benchmarks), mean$\pm$std over three RL seeds; Avg is the macro average over the five benchmarks; the first row of each block is the model before RL; operator parameters are those of Section~\ref{sec:experiments-setup}. Rows above the rule act on the token-level ratio $k_t$; Seq-TIS and Seq-MIS act on the product ratio of the response, GSPO uses a sequence-level surrogate with no correction of $k_t$, and FP16 runs the pipeline in fp16 with no operator. KPop$^\dagger$ is the numerically corrected variant of the shipped KL mask (Appendix~\ref{app:experimental-results}); the as-shipped mask collapsed on one of three seeds into emitting empty chat-format responses and is reported per seed in Table~\ref{tab:extra_seeds} (macro average $21.1_{\pm16.2}$). GSPO lost its training reward on all three seeds (Table~\ref{tab:extra_seeds}). Per-seed accuracy, training reward, intervention rates, and step time are in Tables~\ref{tab:main_seeds} and~\ref{tab:extra_seeds}.}
+\caption{Held-out accuracy (\%) across five math benchmarks after RL on GSM8K: operators applied to the same $(k_t,p_t)$ under one recipe and one code path per model. Values are greedy pass@1 judged by math-verify (uniform protocol across benchmarks), mean$\pm$std over three RL seeds; Avg is the macro average over the five benchmarks; the first row of each block is the model before RL; operator parameters are those of Section~\ref{sec:experiments-setup}. Rows above the rule act on the token-level ratio $k_t$; Seq-TIS and Seq-MIS act on the product ratio of the response, GSPO uses a sequence-level surrogate with no correction of $k_t$, and FP16 runs the pipeline in fp16 with no operator. KPop$^\dagger$ is the numerically corrected variant of the shipped KL mask (Appendix~\ref{app:experimental-results}); the as-shipped mask collapsed on one of three seeds into emitting empty chat-format responses and is reported per seed in Table~\ref{tab:extra_seeds} (macro average $21.1_{\pm16.2}$). GSPO lost its training reward on all three seeds (Table~\ref{tab:extra_seeds}). Per-seed accuracy, training reward, intervention rates, and step time are in Tables~\ref{tab:main_seeds} and~\ref{tab:extra_seeds}. The DeepSeek-V2-Lite block is preliminary: a single seed per method under the same recipe and $\lambda_+=15$ compiled from the measured $c=1.15$ of that model (Section~\ref{sec:experiments-tuning}); on this model RL on GSM8K lowers held-out accuracy for every operator, and the block should be read as damage control rather than gains.}
 \label{tab:main}
 \footnotesize\setlength{\tabcolsep}{2.5pt}
 \begin{tabular}{cl|ccccc|c}
@@ -41,22 +41,22 @@ Model & Method & GSM8K & MATH500 & SVAMP & Minerva & Olympiad & Avg \\
 \rowcolor{blue!8}\cellcolor{white}
 & CIS (ours) & $\mathbf{67.88_{\pm1.64}}$ & $24.20_{\pm1.59}$ & $69.45_{\pm1.95}$ & $\mathbf{5.88_{\pm0.64}}$ & $4.94_{\pm0.99}$ & $\mathbf{34.47_{\pm0.48}}$ \\
 \midrule
-% TODO second MoE (planned: DeepSeek-V2-Lite): fill after Cell D runs
-\multirow{11}{*}{\rotatebox[origin=c]{90}{\scriptsize DeepSeek-V2-Lite}}
-& Base model (no RL) & --- & --- & --- & --- & --- & --- \\
-& No correction & --- & --- & --- & --- & --- & --- \\
-& Exact ratio & --- & --- & --- & --- & --- & --- \\
-& KPop$^\dagger$ & --- & --- & --- & --- & --- & --- \\
-& IcePop & --- & --- & --- & --- & --- & --- \\
-& TIS & --- & --- & --- & --- & --- & --- \\
+% DeepSeek-V2-Lite block: PRELIMINARY single seed (s2, dw87 line); three-seed stats to follow
+\multirow{12}{*}{\rotatebox[origin=c]{90}{\scriptsize DeepSeek-V2-Lite}}
+& Base model (no RL) & 70.66 & 25.40 & 67.67 & 6.25 & 6.08 & 35.21 \\
+& No correction & 54.97 & 22.60 & 55.33 & 5.88 & 6.53 & 29.06 \\
+& Exact ratio & 58.53 & 21.00 & 55.00 & 4.04 & 5.04 & 28.72 \\
+& KPop$^\dagger$ & 57.62 & 22.20 & 56.67 & 4.41 & 4.45 & 29.07 \\
+& IcePop & 58.98 & 22.40 & 61.33 & 4.41 & 5.04 & 30.43 \\
+& TIS & 58.38 & 21.20 & 61.67 & 5.88 & 5.79 & 30.58 \\
 \cmidrule(lr){2-8}
-& Seq-TIS & --- & --- & --- & --- & --- & --- \\
-& Seq-MIS & --- & --- & --- & --- & --- & --- \\
-& GSPO & --- & --- & --- & --- & --- & --- \\
-& FP16 & --- & --- & --- & --- & --- & --- \\
+& Seq-TIS & 42.23 & 20.20 & 38.67 & 4.41 & 4.45 & 21.99 \\
+& Seq-MIS & 38.13 & 19.60 & 41.00 & 4.41 & 5.04 & 21.64 \\
+& GSPO & 57.39 & 22.40 & 61.33 & 5.88 & 6.38 & 30.68 \\
+& FP16 & 56.94 & 22.60 & 53.67 & 4.78 & 5.19 & 28.64 \\
 \cmidrule(lr){2-8}
 \rowcolor{blue!8}\cellcolor{white}
-& CIS (ours) & --- & --- & --- & --- & --- & --- \\
+& CIS (ours) & 59.21 & 20.60 & 56.67 & 4.41 & 6.38 & 29.45 \\
 \midrule
 % TODO third MoE (planned: Qwen3-30B-A3B): fill after Cell E runs
 \multirow{11}{*}{\rotatebox[origin=c]{90}{\scriptsize Qwen3-30B-A3B}}

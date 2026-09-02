@@ -999,7 +999,7 @@ CIS (ours, \Cref{alg:cis}) & 64.67 & \textbf{64.97} & 63.23 & $\mathbf{64.29_{\p
 
 \begin{table}[h]
 \centering
-\caption{Per-seed results for the baselines from outside the token-level operator class (five-benchmark protocol of Table~\ref{tab:main}): GSM8K accuracy and macro average over the five benchmarks per seed, mean training reward over the third epoch, and the fraction of responses on which the operator acts (Seq-TIS: capped; Seq-MIS: rejected). GSPO's reward peaks near $0.80$ in the second epoch on every seed and then collapses; FP16 has no operator.}
+\caption{Per-seed results for the as-shipped KPop mask and the baselines from outside the token-level operator class (five-benchmark protocol of Table~\ref{tab:main}): GSM8K accuracy and macro average over the five benchmarks per seed, mean training reward over the third epoch, and the fraction of responses on which the operator acts (Seq-TIS: capped; Seq-MIS: rejected). GSPO's reward peaks near $0.80$ in the second epoch on every seed and then collapses; FP16 has no operator.}
 \label{tab:extra_seeds}
 \footnotesize\setlength{\tabcolsep}{4pt}
 \begin{tabular}{lcccccc}
@@ -1007,6 +1007,7 @@ CIS (ours, \Cref{alg:cis}) & 64.67 & \textbf{64.97} & 63.23 & $\mathbf{64.29_{\p
  & \multicolumn{3}{c}{GSM8K (seed 1 / 2 / 3)} & \multicolumn{3}{c}{Avg (seed 1 / 2 / 3)} \\
 Method & & & & & & \\
 \midrule
+KPop (as shipped, binary-KL mask $2$) & 63.00 & 2.05 & 57.32 & 31.10 & 2.43 & 29.73 \\
 Seq-TIS (cap $2$, product ratio) & 65.96 & 65.73 & 66.11 & 32.39 & 31.36 & 33.08 \\
 Seq-MIS (mask $[0.5,2]$, product ratio) & 60.27 & 62.70 & 59.97 & 30.47 & 31.81 & 31.18 \\
 GSPO (clip $3\times10^{-4}/4\times10^{-4}$) & 52.54 & 0.00 & 40.11 & 27.44 & 0.50 & 22.61 \\

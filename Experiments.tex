@@ -18,7 +18,7 @@ We train Qwen1.5-MoE-A2.7B-Chat with AReaL on the GSM8K training set (SGLang rol
 
 \begin{table}[t]
 \centering
-\caption{Held-out accuracy (\%) across five math benchmarks after RL on GSM8K: operators applied to the same $(k_t,p_t)$ under one recipe and one code path per model. Values are greedy pass@1 judged by math-verify (uniform protocol across benchmarks), mean$\pm$std over three RL seeds; Avg is the macro average over the five benchmarks; the first row of each block is the model before RL; operator parameters are those of Section~\ref{sec:experiments-setup}. Rows above the rule act on the token-level ratio $k_t$; Seq-TIS and Seq-MIS act on the product ratio of the response, GSPO uses a sequence-level surrogate with no correction of $k_t$, and FP16 runs the pipeline in fp16 with no operator. KPop$^\dagger$ is the numerically corrected variant of the shipped KL mask (Appendix~\ref{app:experimental-results}); the as-shipped mask collapsed on one of three seeds into emitting empty chat-format responses and is reported per seed in Table~\ref{tab:extra_seeds} (macro average $21.1_{\pm16.2}$). GSPO lost its training reward on all three seeds (Table~\ref{tab:extra_seeds}). Per-seed accuracy, training reward, intervention rates, and step time are in Tables~\ref{tab:main_seeds} and~\ref{tab:extra_seeds}. The DeepSeek-V2-Lite and Qwen3-30B-A3B blocks are in progress: filled RL entries are single seeds (no standard deviation) and will be replaced by three-seed statistics; on Qwen3-30B-A3B the untrained model already solves $95\%$ of GSM8K, so that block measures stability under a saturated training task rather than gains.}
+\caption{Held-out accuracy (\%) across five math benchmarks after RL on GSM8K: operators applied to the same $(k_t,p_t)$ under one recipe and one code path per model. Values are greedy pass@1 judged by math-verify (uniform protocol across benchmarks), mean$\pm$std over three RL seeds; Avg is the macro average over the five benchmarks; the first row of each block is the model before RL; operator parameters are those of Section~\ref{sec:experiments-setup}. Rows above the rule act on the token-level ratio $k_t$; Seq-TIS and Seq-MIS act on the product ratio of the response, GSPO uses a sequence-level surrogate with no correction of $k_t$, and FP16 runs the pipeline in fp16 with no operator. KPop$^\dagger$ is the numerically corrected variant of the shipped KL mask (Appendix~\ref{app:experimental-results}); the as-shipped mask collapsed on one of three seeds into emitting empty chat-format responses and is reported per seed in Table~\ref{tab:extra_seeds} (macro average $21.1_{\pm16.2}$). GSPO lost its training reward on all three seeds (Table~\ref{tab:extra_seeds}). Per-seed accuracy, training reward, intervention rates, and step time are in Tables~\ref{tab:main_seeds} and~\ref{tab:extra_seeds}. The DeepSeek-V2-Lite and Qwen3-30B-A3B blocks are in progress: filled RL entries average the one or two seeds completed so far (no standard deviation) and will be replaced by three-seed statistics; on Qwen3-30B-A3B the untrained model already solves $95\%$ of GSM8K, so that block measures stability under a saturated training task rather than gains.}
 \label{tab:main}
 \footnotesize\setlength{\tabcolsep}{2.5pt}
 \begin{tabular}{cl|ccccc|c}
@@ -42,11 +42,11 @@ Model & Method & GSM8K & MATH500 & SVAMP & Minerva & Olympiad & Avg \\
 \rowcolor{blue!8}\cellcolor{white}
 & CIS (ours) & $\mathbf{67.88_{\pm1.64}}$ & $24.20_{\pm1.59}$ & $69.45_{\pm1.95}$ & $\mathbf{5.88_{\pm0.64}}$ & $4.94_{\pm0.99}$ & $\mathbf{34.47_{\pm0.48}}$ \\
 \midrule
-% DeepSeek-V2-Lite block: base + PRELIMINARY single-seed rows (TIS s2, Seq-TIS s2) from tokenizer-fixed vLLM reruns; three-seed stats to follow
+% DeepSeek-V2-Lite block: PRELIMINARY, means over completed seeds (nocorr/exact: 2 seeds; TIS/Seq-TIS: 1 seed) from tokenizer-fixed vLLM reruns
 \multirow{11}{*}{\rotatebox[origin=c]{90}{\scriptsize DeepSeek-V2-Lite}}
 & Base model (no RL) & 70.66 & 25.40 & 67.67 & 6.25 & 6.08 & 35.21 \\
-& No correction & --- & --- & --- & --- & --- & --- \\
-& Exact ratio & --- & --- & --- & --- & --- & --- \\
+& No correction & 71.80 & 23.70 & 72.50 & 7.91 & 6.60 & 36.50 \\
+& Exact ratio & 71.04 & 24.30 & 70.16 & 7.17 & 4.75 & 35.48 \\
 & KPop$^\dagger$ & --- & --- & --- & --- & --- & --- \\
 & IcePop & --- & --- & --- & --- & --- & --- \\
 & TIS & 73.46 & 23.80 & 67.33 & 7.35 & 5.19 & 35.43 \\
@@ -59,22 +59,22 @@ Model & Method & GSM8K & MATH500 & SVAMP & Minerva & Olympiad & Avg \\
 \rowcolor{blue!8}\cellcolor{white}
 & CIS (ours) & --- & --- & --- & --- & --- & --- \\
 \midrule
-% Qwen3-30B-A3B block: PRELIMINARY single-seed rows (nocorr s1, exact s1, KPop† s2) from vLLM-rollout runs; three-seed stats to follow
+% Qwen3-30B-A3B block: PRELIMINARY, means over completed seeds (exact: 2 seeds; others: 1 seed) from thinking- and tokenizer-fixed vLLM runs
 \multirow{11}{*}{\rotatebox[origin=c]{90}{\scriptsize Qwen3-30B-A3B}}
-& Base model (no RL) & 95.22 & 74.00 & 93.33 & 31.25 & 45.40 & 68.24 \\
+& Base model (no RL) & 95.22 & 74.00 & 93.33 & 31.25 & 45.40 & 67.84 \\
 & No correction & 95.15 & 73.00 & 93.33 & 33.46 & 46.29 & 68.25 \\
-& Exact ratio & 95.45 & 75.00 & 94.00 & 33.09 & 46.44 & 68.80 \\
+& Exact ratio & 95.22 & 74.60 & 93.84 & 33.28 & 47.48 & 68.88 \\
 & KPop$^\dagger$ & 95.15 & 75.20 & 94.00 & 32.35 & 47.03 & 68.75 \\
 & IcePop & --- & --- & --- & --- & --- & --- \\
-& TIS & --- & --- & --- & --- & --- & --- \\
+& TIS & 95.07 & 74.60 & 94.67 & 34.93 & 47.63 & 69.38 \\
 \cmidrule(lr){2-8}
 & Seq-TIS & --- & --- & --- & --- & --- & --- \\
-& Seq-MIS & --- & --- & --- & --- & --- & --- \\
-& GSPO & --- & --- & --- & --- & --- & --- \\
-& FP16 & --- & --- & --- & --- & --- & --- \\
+& Seq-MIS & 95.22 & 73.80 & 93.67 & 32.72 & 47.33 & 68.55 \\
+& GSPO & 95.38 & 75.00 & 93.33 & 33.09 & 49.11 & 69.18 \\
+& FP16 & 94.77 & 73.80 & 94.67 & 33.09 & 47.03 & 68.67 \\
 \cmidrule(lr){2-8}
 \rowcolor{blue!8}\cellcolor{white}
-& CIS (ours) & --- & --- & --- & --- & --- & --- \\
+& CIS (ours) & 95.38 & 74.20 & 94.33 & 33.82 & 47.03 & 68.95 \\
 \bottomrule
 \end{tabular}
 \end{table}

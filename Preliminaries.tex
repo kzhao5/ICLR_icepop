@@ -11,17 +11,18 @@ implementations, reduction orders, and numerical precisions make them assign
 different probabilities to the same token,
 $\pi_{\mathrm{train}}(y_t\mid x,y_{<t};\theta)\ne
 \pi_{\mathrm{infer}}(y_t\mid x,y_{<t};\theta)$,
-so that nominally on-policy training is in fact off-policy. The problem is more
-severe on mixture-of-experts models, where routing is a discrete top-$k$
-decision and a small numerical perturbation can change which experts are
-activated.
+so that rollouts that are nominally on-policy are in fact off-policy with
+respect to the training-engine policy. The problem is more severe on
+mixture-of-experts models, where routing is a discrete top-$k$ decision and a
+small numerical perturbation can change which experts are activated.
 
-\subsection{The objective}
-\label{sec:prelim_objective}
+\subsection{Training--inference mismatch in RLVR}
+\label{sec:prelim_rlvr}
 
-Rollouts are sampled from the inference engine while the gradient is taken with
-respect to the training-engine policy, so the token-level GRPO objective carries
-a change-of-measure factor,
+Rollouts are sampled from the inference engine while gradients are computed
+under the training-engine policy. For the token-level GRPO surrogate evaluated
+on the observed rollout prefixes, correcting the conditional distribution of
+each sampled token introduces the importance ratio
 \begin{equation}
 \mathcal J(\theta)
 =
@@ -43,7 +44,9 @@ and
 $k_{i,t}=\pi_{\mathrm{train}}(y_{i,t}\mid x,y_{i,<t};\theta_{\mathrm{old}})\big/
 \pi_{\mathrm{infer}}(y_{i,t}\mid x,y_{i,<t};\theta_{\mathrm{old}})$,
 with $\theta_{\mathrm{old}}$ the parameter snapshot at rollout time and
-$\hat A_{i,t}$ the group-normalized advantage. The update ratio $\rho_{i,t}$ is
-handled by the clip of standard PPO; the mismatch ratio $k_{i,t}$ carries the
-discrepancy of Section~\ref{sec:prelim_mismatch} and is the subject of the rest
-of this paper.
+$\hat A_{i,t}$ the group-normalized advantage.
+Here $k_{i,t}$ corrects the next-token distribution conditional on the observed
+prefix $(x,y_{i,<t})$; it does not importance-weight the distribution of the
+prefix itself. The update ratio $\rho_{i,t}$ is handled by the clip of standard
+PPO; the mismatch ratio $k_{i,t}$ carries the discrepancy of
+Section~\ref{sec:prelim_mismatch} and is the subject of the rest of this paper.

@@ -16,6 +16,9 @@
 \usepackage{url}
 \usepackage{wrapfig}
 \usepackage{float}
+\usepackage{enumitem}
+\usepackage{titletoc}
+
 
 % -----------------------------------------------------------------------------
 % Theorem environments
@@ -79,10 +82,14 @@
 \newcommand{\argminop}{\operatorname*{arg\,min}}
 \newcommand{\sgn}{\operatorname{sign}}
 \newcommand{\Uset}{\mathcal{U}}
+\DeclareMathOperator*{\argmin}{arg\,min}
 \newcommand{\Mdown}{\mathcal{M}_{\downarrow}}
 \DeclareMathOperator{\logit}{logit}
-\title{CIS: Calibrated Importance Sampling for\\
-Training--Inference Mismatch in LLM Reinforcement Learning}
+\title{CIS: Train–Inference-Mismatch-Aware RLVR via Calibrated Importance Sampling
+% CIS: Calibrated Importance Sampling for\\
+% Training--Inference Mismatch in LLM Reinforcement Learning}
+% Training-Inference Mismatch Robust RLVR with Calibrated Importance Sampling
+}
 \author{Anonymous Authors}
 
 % \iclrfinalcopy
@@ -91,12 +98,17 @@ Training--Inference Mismatch in LLM Reinforcement Learning}
 \maketitle
 
 \begin{abstract}
+We study training–inference mismatch in reinforcement learning with verifiable rewards (RLVR), where rollouts are sampled by an inference engine while gradients are computed by a training engine, assigning different probabilities to the same tokens. To account for this discrepancy in policy updates, we introduce CIS, a calibrated importance sampling method for mismatch correction. CIS is motivated by an empirically supported logit-displacement model that characterizes the mismatch as an additive displacement $\varepsilon_t$ in log-odds, with a confidence-invariant bulk distribution and a sparse residual component based on token confidence. This model motivates a confidence-aware truncation band that suppresses numerical noise on high-confidence tokens while preserving learning signals on less-confident tokens. Theoretically, we show that under the proposed mismatch model, CIS can provably reduce the explosive variance introduced by vanilla importance sampling. In comprehensive evaluation across five mathematical reasoning benchmarks, CIS achieves the highest average held-out accuracy among the evaluated token-level and sequence-level baselines, with low variability across seeds. Diagnostic analyses show that CIS acts on high-confidence tokens left untouched by the fixed-threshold baselines, while upward clipping of small importance weights reduces held-out accuracy despite increasing training reward. 
+% Theoretically, under the proposed mismatch model, we bound the variance of CIS using the first exponential moment of the logit displacement, replacing the second-exponential-moment dependence of untruncated importance sampling while explicitly quantifying the bias introduced by truncation.
+% We study the training-inference mismatch in reinforcement learning with verifiable reward (RLVR), where rollouts are sampled by an inference engine while gradients are computed by a training engine that assigns different probabilities to the same tokens. To mitigate this mismatch in the RLVR process, we introduce CIS, a calibrated importance sampling method for mismatch correction. The CIS is motivated by a careful-design logit-displacement model characterizing the mismatch as a displacement $\varepsilon_t$ in the log-odds that is independent of the model output. Based on this finding, CIS suppresses numerical noise and preserves the gradient signal by truncating the importance ratio with a confidence-aware band. Theoretically, CIS can provably reduce the explosive variance introduced by vanilla importance sampling. 
+% CIS truncates the importance ratio with a confidence-dependent band, which suppresses numerical noise on high-confidence tokens while preserving the gradient signal on low-confidence ones, at the cost of a single elementwise operation. At the core of CIS is a logit-displacement model, which characterizes the mismatch as a displacement $\varepsilon_t$ in the log-odds that is independent of the token confidence, as supported by large-scale measurements. Under this model, we show that exact importance sampling incurs an explosive variance, and that the CIS band minimizes a bias--variance surrogate risk among all corrections that only shrink the ratio, with a provable reduction in variance. 
+% Empirically, CIS achieves the highest held-out accuracy and the smallest variance across seeds among token-level and sequence-level baselines on 5 mathematical reasoning benchmarks. Diagnostic analyses show that CIS acts on high-confidence tokens that constant thresholds never reach, and that lifting the lower side of the band degrades held-out accuracy even as the training reward increases.
 \end{abstract}
 \input{Introduction}
-\input{Related Work}
 \input{Preliminaries}
 \input{Theoretical Framework}
 \input{Experiments}
+\input{Related Work}
 \input{Conclusion}
 \bibliography{iclr2027_conference}
 \bibliographystyle{iclr2027_conference}

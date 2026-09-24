@@ -1,27 +1,99 @@
 \section{Introduction}
 \label{sec:introduction}
 
-% Modern language-model RL is implemented by two software stacks. An inference engine such as vLLM or SGLang generates rollouts, while a training engine such as Megatron or FSDP recomputes log probabilities and backpropagates gradients. Different kernels, parallelism layouts, reduction orders, precisions, and decode paths make these stacks numerically distinct even when they load the same parameters \citep{yao2025tis,he2025nondeterminism,qi2025fp16}. The discrepancy is especially consequential in mixture-of-experts models. A small numerical perturbation can change a discrete top-$k$ routing decision, so the training path may traverse experts that did not generate the sampled token \citep{ling2025ring,ma2025r3}. The mismatch can then affect both the token probability and the conditional mean of the gradient payload.
+Reinforcement learning with verifiable rewards (RLVR) has become a dominant
+paradigm for improving the reasoning abilities of large language models
+(LLMs)~\citep{cite}. To improve throughput, current RL post-training frameworks
+decouple rollout generation from gradient computation, delegating them to an
+inference engine and a training engine respectively~\citep{cite}. Although the
+two engines load the same parameters, differences in their numerical
+implementations lead them to assign different probabilities to the same token,
+so that nominally on-policy training is in fact off-policy~\citep{cite}. This
+\emph{training--inference mismatch} is particularly severe on mixture-of-experts
+models, and can cause training instability or even collapse~\citep{cite}.
 
-% Practice has produced two different repairs. Truncated importance sampling (TIS) caps the engine ratio \citep{ionides2008truncated,yao2025tis}; IcePop zeroes every ratio outside a fixed interval \citep{ling2025ring}. Both require choices outside the underlying RL objective. This leaves three questions unanswered: why should a large ratio be capped rather than removed, when should it instead be removed, and what uncertainty assumptions make either operation uniformly valid?
+The standard remedy for this mismatch is importance sampling, which reweights
+the gradient of each token by the ratio of the two engines'
+probabilities~\citep{cite}. However, the two engines occasionally disagree
+sharply on individual tokens, making this ratio extremely large, so that the
+exact correction yields gradient estimates with uncontrolled variance. The key
+question is therefore not whether to correct, but how to truncate. Moreover, a
+deviation of the same size has different significance at different confidence
+levels: on a highly confident token, the typical mismatch is much narrower, so
+the same deviation is more anomalous; on a less-confident token, larger
+deviations arise naturally from the broader mismatch distribution.
 
-% \paragraph{Our view.}
-% An uncertainty class is not merely a regularizer around a fixed algorithm. Together with a decision criterion, it selects the token-level operator and determines the boundary of its guarantee. A bounded-ratio class treats every payload as valid but potentially influential, leading to a projection onto an influence budget. A localized corrupted channel allows a small fraction of payload means to be unknown without imposing a zero-mean condition, leading to a clean-fidelity versus corrupted-exposure tradeoff. The cap and the gate are therefore solutions to different statistical problems rather than interchangeable heuristics.
+Existing methods largely rely on heuristic rules. At the token level, TIS caps
+the ratio at a fixed upper bound~\citep{cite}, IcePop masks tokens whose ratio
+falls outside a fixed interval~\citep{cite}, and KPop masks by a KL
+threshold~\citep{cite}; at the sequence level, existing methods truncate or
+reject the ratio of the whole response~\citep{cite}, or replace the token-level
+objective with a sequence-level one~\citep{cite}; other work approaches the
+problem from numerical precision and switches the entire pipeline to
+FP16~\citep{cite}. Although these methods are effective to varying degrees,
+their thresholds are all independent of token confidence, and none of them
+characterizes \emph{how much to truncate} from the statistical structure of the
+mismatch itself. In practice, fixed thresholds take effect predominantly on
+the least confident tokens, while substantial mismatches on high-confidence
+tokens can remain untreated. This gap motivates the central question:
 
-% Our contributions are threefold.
-% \begin{itemize}
-%     \item We formalize geometry--operator correspondence through two requirements: an operator must minimize a bias constant uniformly over a stated observation-law class, and a matching hard instance must characterize the boundary beyond which its guarantee fails. This follows the closed-form-plus-lower-bound proof organization of \citet{shi2023distributionally}, while changing the statistical object from a robust Bellman functional to a ratio-weighted gradient estimator.
-%     \item We prove a complete density-band correspondence. A cap covering the band is exactly unbiased; under a fixed influence budget it is the unique pointwise projection for every admissible ratio law; and an essential escape component places the observation law outside every finite band and creates a bias floor of at least $\eps B e^{\sigma}$ for every band-faithful cap.
-%     \item We prove a complete localized-corruption correspondence. Without localization, the cap-versus-gate choice is not identifiable from the class. With localization, the uniform-risk optimal rule is the identity outside the escape set and $\min\{k,m^{\star}\}$ inside it. Hard zeroing is optimal if and only if positive clean escape mass is at most $\eps/(1-\eps)$, and an attaining-member construction matches the uniform constant for every measurable operator.
-% \end{itemize}
+\begin{center}
+\emph{Can we design a principled mismatch correction grounded in the \\
+statistical structure of the training--inference mismatch itself?}
+\end{center}
 
-\paragraph{Notation.}
-We use plain letters such as $x$ to denote scalars, lowercase bold letters such as
-$\mathbf{x}$ to denote vectors, and calligraphic letters such as $\mathcal{F}$ to
-denote sets and function classes. For a vector $\mathbf{x}$, $\|\mathbf{x}\|_2$
-denotes its $\ell_2$-norm. For a scalar $x \in (0,1)$, $\logit x := \log\frac{x}{1-x}$.
-\paragraph{Notation.}
-We use plain letters such as $x$ to denote scalars, lowercase bold letters such as
-$\mathbf{x}$ to denote vectors, and calligraphic letters such as $\mathcal{F}$ to
-denote sets and function classes. For a vector $\mathbf{x}$, $\|\mathbf{x}\|_2$
-denotes its $\ell_2$-norm. For a scalar $x \in (0,1)$, $\logit x := \log\frac{x}{1-x}$.
+We answer this question affirmatively by proposing \textbf{CIS}---\underline{\textbf{C}}alibrated
+\underline{\textbf{I}}mportance \underline{\textbf{S}}ampling---as illustrated
+in \Cref{fig:cis_pipeline}. CIS imposes on the importance weight of each token
+an upper bound that varies with its confidence, suppressing numerical noise
+while preserving the learning signal. At its core is a truncation criterion
+derived from the statistical structure of the mismatch: confidence calibration
+determines the shape of the truncation band, while bias--variance minimization
+determines its slope. Our contributions are as follows:
+
+\begin{itemize}[leftmargin=*]
+\item We propose a logit-displacement model of the training--inference
+mismatch: the mismatch manifests as an additive displacement $\varepsilon_t$
+in the log-odds of the sampled token, with a confidence-invariant bulk
+distribution and a sparse residual component that may depend on token
+confidence. We further trace this displacement back to the per-logit
+perturbation before the softmax: the bulk is consistent with floating-point
+rounding, while routing disagreement is an important contributor to the heavy
+tail in mixture-of-experts models.
+
+\item Under this model, we formulate mismatch correction as a bias--variance
+minimization problem in which importance weights may only be attenuated, never
+amplified. We show that calibrating the truncation to clip the same fraction of
+bulk tokens across confidence levels yields a band whose width grows linearly
+with token uncertainty, reducing the remaining optimization to a single slope
+parameter. Theoretically, we show that CIS replaces the potentially explosive
+second-moment dependence $\E[e^{2\varepsilon_t}]$ of exact importance sampling
+with a uniformly bounded truncated second moment, while its induced bias is
+controlled by the first moment $\E[e^{\varepsilon_t}]$.
+
+\item Empirically, we show that CIS outperforms existing token-level and
+sequence-level baselines across multiple mathematical reasoning benchmarks.
+Diagnostic analyses further support our theoretical claims and validate the
+necessity of confidence-aware truncation.
+\end{itemize}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/cis_pipeline.pdf}
+    \caption{
+        \textbf{Overview of CIS.}
+        Inference and training engines assign different probabilities
+        to the same sampled tokens.
+        CIS clips their importance ratios using confidence-dependent
+        upper bounds, with tighter caps for higher-confidence tokens.
+        The resulting weights are detached and used to reweight
+        GRPO token losses.
+    }
+    \label{fig:cis_pipeline}
+\end{figure}
+
+% \paragraph{Notation.}
+% We use plain letters such as $x$ to denote scalars, lowercase bold letters such as
+% $\mathbf{x}$ to denote vectors, and calligraphic letters such as $\mathcal{F}$ to
+% denote sets and function classes. For a vector $\mathbf{x}$, $\|\mathbf{x}\|_2$
+% denotes its $\ell_2$-norm. For a scalar $x \in (0,1)$, $\logit x := \log\frac{x}{1-x}$.

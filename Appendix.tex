@@ -1830,6 +1830,29 @@ CIS (ours, \Cref{alg:cis}) & 64.67 & \textbf{64.97} & 63.23 & $\mathbf{64.29_{\p
 
 \begin{table}[h]
 \centering
+\caption{Per-seed macro average over the five benchmarks for Qwen1.5-MoE-A2.7B, behind the means of Table~\ref{tab:main}. Same protocol as Table~\ref{tab:main} (greedy pass@1, math-verify). Spread is the standard deviation over the three seeds.}
+\label{tab:main_macro_seeds}
+\footnotesize\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lccccc}
+\toprule
+Method & Seed 1 & Seed 2 & Seed 3 & Mean & Spread \\
+\midrule
+No correction & 30.76 & 31.20 & 31.01 & 30.99 & 0.22 \\
+Exact ratio & 34.21 & 31.57 & 29.79 & 31.86 & 2.23 \\
+KPop$^\dagger$ & 31.05 & 33.77 & 34.14 & 32.99 & 1.69 \\
+IcePop & 34.60 & 34.37 & 33.56 & 34.18 & 0.55 \\
+TIS & 29.93 & 29.54 & 34.28 & 31.25 & 2.63 \\
+Seq-TIS & 32.39 & 31.36 & 33.08 & 32.28 & 0.86 \\
+Seq-MIS & 30.47 & 31.81 & 31.18 & 31.15 & 0.67 \\
+GSPO & 27.44 & 0.50 & 22.61 & 16.85 & 14.37 \\
+FP16 & 30.68 & 30.93 & 31.44 & 31.02 & 0.39 \\
+CIS (ours) & 33.92 & 34.71 & 34.78 & 34.47 & 0.48 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
 \caption{Per-seed results for the as-shipped KPop mask and the baselines from outside the token-level operator class (five-benchmark protocol of Table~\ref{tab:main}): GSM8K accuracy and macro average over the five benchmarks per seed, mean training reward over the third epoch, and the fraction of responses on which the operator acts (Seq-TIS: capped; Seq-MIS: rejected). GSPO's reward peaks near $0.80$ in the second epoch on every seed and then collapses; FP16 has no operator.}
 \label{tab:extra_seeds}
 \footnotesize\setlength{\tabcolsep}{4pt}
